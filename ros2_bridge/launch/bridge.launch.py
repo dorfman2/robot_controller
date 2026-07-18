@@ -18,7 +18,7 @@ def generate_launch_description() -> LaunchDescription:
             parameters=[{
                 'serial_port': '/dev/armold_ramps',
                 'baud_rate': 115200,
-                'step_delay': 800,
+                'step_delay': 200,
                 'poll_rate': 5.0,
             }],
         ),

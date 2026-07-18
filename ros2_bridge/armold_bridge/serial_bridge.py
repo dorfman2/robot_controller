@@ -50,7 +50,7 @@ class ArmoldSerialBridge(Node):
         # Parameters
         self.declare_parameter('serial_port', '/dev/armold_ramps')
         self.declare_parameter('baud_rate', 115200)
-        self.declare_parameter('step_delay', 800)
+        self.declare_parameter('step_delay', 200)
         self.declare_parameter('poll_rate', 5.0)  # Hz for state polling
 
         self.serial_port: str = self.get_parameter('serial_port').value

@@ -18,6 +18,8 @@
  *   E0          - Disable all motors
  *   M<j> <steps> <dir> <delay>  - Move joint j by steps (dir: 0=fwd, 1=rev, delay in us)
  *   S           - Query state (returns position counters)
+ *   R           - Reset all position counters
+ *   R<j>        - Reset single joint position (e.g. R1)
  *   ?           - Print help
  *
  * Interactive shortcuts (single char, for manual testing):
@@ -44,11 +46,11 @@
 #define J2_EN_PIN    62
 
 // --- Configuration ---
-#define MICROSTEPS          16
+#define MICROSTEPS          8
 #define FULL_STEPS_PER_REV  200
 #define STEPS_PER_REV       (FULL_STEPS_PER_REV * MICROSTEPS)
 
-#define DEFAULT_STEP_DELAY  800
+#define DEFAULT_STEP_DELAY  200
 #define MIN_STEP_DELAY      50
 #define MAX_STEP_DELAY      5000
 #define DELAY_INCREMENT     50
@@ -185,10 +187,22 @@ void handleCommand(String &cmd) {
 
         case 'R': {
             // Reset position counters
-            position[0] = 0;
-            position[1] = 0;
-            position[2] = 0;
-            Serial.println(F("OK R"));
+            // R  = reset all, R0/R1/R2 = reset single joint
+            if (cmd.length() >= 2) {
+                int joint = cmd.charAt(1) - '0';
+                if (joint >= 0 && joint <= 2) {
+                    position[joint] = 0;
+                    Serial.print(F("OK R"));
+                    Serial.println(joint);
+                } else {
+                    Serial.println(F("ERR PARAM"));
+                }
+            } else {
+                position[0] = 0;
+                position[1] = 0;
+                position[2] = 0;
+                Serial.println(F("OK R"));
+            }
             break;
         }
 
@@ -279,7 +293,7 @@ void setup() {
     setMotorsEnabled(false);
 
     Serial.println(F("ARMOLD RAMPS 1.0"));
-    Serial.println(F("TMC2208 16ustep 3200/rev"));
+    Serial.println(F("TMC2208/A4988 8ustep 1600/rev"));
     Serial.println(F("READY"));
 }
 
