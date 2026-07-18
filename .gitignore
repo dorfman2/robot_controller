@@ -1,0 +1,17 @@
+# PlatformIO
+.pio/
+.vscode/
+get-platformio.py
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# ROS 2 build artifacts (Pi-side)
+build/
+install/
+log/
+
+# OS
+.DS_Store

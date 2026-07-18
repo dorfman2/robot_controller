@@ -1,0 +1,9 @@
+# Add this to ~/.ssh/config on your Mac
+# Then connect with: ssh armold
+
+Host armold
+    HostName armold.local
+    User pi
+    IdentityFile ~/.ssh/id_ed25519
+    ForwardAgent yes
+    StrictHostKeyChecking accept-new
