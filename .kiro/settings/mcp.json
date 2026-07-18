@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "amzn-mcp": {
+      "command": "amzn-mcp",
+      "args": [
+        "--include-tools=read_quip,read_internal_website,sim_get_folders,sim_get_issue,search_quip,search_internal_code,sim_search_issues,search_internal_websites"
+      ],
+      "env": {
+        "QUIP_API_TOKEN": ""
+      },
+      "disabled": true,
+      "autoApprove": []
+    }
+  }
+}
