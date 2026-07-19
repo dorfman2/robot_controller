@@ -121,6 +121,13 @@
             border-radius: 4px;
         }
 
+        .joint-degrees {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            color: #00d4ff;
+            margin-left: 8px;
+        }
+
         .joint-controls {
             display: flex;
             gap: 8px;
@@ -191,6 +198,48 @@
             background: #1a3050;
             border-color: #00d4ff;
             color: #fff;
+        }
+
+        .action-btn.demo-btn {
+            background: #1a4a2e;
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+
+        .action-btn.demo-btn:hover {
+            background: #2ecc71;
+            color: #000;
+        }
+
+        .action-btn.demo-btn.running {
+            background: #f39c12;
+            border-color: #f39c12;
+            color: #000;
+            cursor: not-allowed;
+        }
+
+        .estop-btn {
+            padding: 12px 30px;
+            border: 2px solid #e74c3c;
+            border-radius: 6px;
+            background: #e74c3c;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .estop-btn:hover {
+            background: #c0392b;
+            transform: scale(1.05);
+        }
+
+        .estop-btn:active {
+            background: #922b21;
+            transform: scale(0.98);
         }
 
         .connection-form {
@@ -272,60 +321,77 @@
         <div class="joint-panel" id="joint-0-panel">
             <div class="joint-header">
                 <h3>Joint 0 (Base)</h3>
-                <span class="joint-position" id="pos-0">0</span>
+                <div>
+                    <span class="joint-position" id="pos-0">0</span>
+                    <span class="joint-degrees" id="deg-0">0.0°</span>
+                </div>
             </div>
             <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(0, -3200)">-Rev</button>
-                <button class="jog-btn negative" onclick="jog(0, -800)">-800</button>
-                <button class="jog-btn negative" onclick="jog(0, -200)">-200</button>
-                <button class="jog-btn negative" onclick="jog(0, -50)">-50</button>
+                <button class="jog-btn negative" onclick="jog(0, -20757)">-360°</button>
+                <button class="jog-btn negative" onclick="jog(0, -5189)">-90°</button>
+                <button class="jog-btn negative" onclick="jog(0, -1730)">-30°</button>
+                <button class="jog-btn negative" onclick="jog(0, -577)">-10°</button>
+                <button class="jog-btn negative" onclick="jog(0, -58)">-1°</button>
                 <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(0, 50)">+50</button>
-                <button class="jog-btn" onclick="jog(0, 200)">+200</button>
-                <button class="jog-btn" onclick="jog(0, 800)">+800</button>
-                <button class="jog-btn" onclick="jog(0, 3200)">+Rev</button>
+                <button class="jog-btn" onclick="jog(0, 58)">+1°</button>
+                <button class="jog-btn" onclick="jog(0, 577)">+10°</button>
+                <button class="jog-btn" onclick="jog(0, 1730)">+30°</button>
+                <button class="jog-btn" onclick="jog(0, 5189)">+90°</button>
+                <button class="jog-btn" onclick="jog(0, 20757)">+360°</button>
             </div>
         </div>
 
         <div class="joint-panel" id="joint-1-panel">
             <div class="joint-header">
                 <h3>Joint 1 (Shoulder)</h3>
-                <span class="joint-position" id="pos-1">0</span>
+                <div>
+                    <span class="joint-position" id="pos-1">0</span>
+                    <span class="joint-degrees" id="deg-1">0.0°</span>
+                </div>
             </div>
             <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(1, -3200)">-Rev</button>
-                <button class="jog-btn negative" onclick="jog(1, -800)">-800</button>
-                <button class="jog-btn negative" onclick="jog(1, -200)">-200</button>
-                <button class="jog-btn negative" onclick="jog(1, -50)">-50</button>
+                <button class="jog-btn negative" onclick="jog(1, -20757)">-360°</button>
+                <button class="jog-btn negative" onclick="jog(1, -5189)">-90°</button>
+                <button class="jog-btn negative" onclick="jog(1, -1730)">-30°</button>
+                <button class="jog-btn negative" onclick="jog(1, -577)">-10°</button>
+                <button class="jog-btn negative" onclick="jog(1, -58)">-1°</button>
                 <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(1, 50)">+50</button>
-                <button class="jog-btn" onclick="jog(1, 200)">+200</button>
-                <button class="jog-btn" onclick="jog(1, 800)">+800</button>
-                <button class="jog-btn" onclick="jog(1, 3200)">+Rev</button>
+                <button class="jog-btn" onclick="jog(1, 58)">+1°</button>
+                <button class="jog-btn" onclick="jog(1, 577)">+10°</button>
+                <button class="jog-btn" onclick="jog(1, 1730)">+30°</button>
+                <button class="jog-btn" onclick="jog(1, 5189)">+90°</button>
+                <button class="jog-btn" onclick="jog(1, 20757)">+360°</button>
             </div>
         </div>
 
         <div class="joint-panel" id="joint-2-panel">
             <div class="joint-header">
                 <h3>Joint 2 (Elbow)</h3>
-                <span class="joint-position" id="pos-2">0</span>
+                <div>
+                    <span class="joint-position" id="pos-2">0</span>
+                    <span class="joint-degrees" id="deg-2">0.0°</span>
+                </div>
             </div>
             <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(2, -3200)">-Rev</button>
-                <button class="jog-btn negative" onclick="jog(2, -800)">-800</button>
-                <button class="jog-btn negative" onclick="jog(2, -200)">-200</button>
-                <button class="jog-btn negative" onclick="jog(2, -50)">-50</button>
+                <button class="jog-btn negative" onclick="jog(2, -20757)">-360°</button>
+                <button class="jog-btn negative" onclick="jog(2, -5189)">-90°</button>
+                <button class="jog-btn negative" onclick="jog(2, -1730)">-30°</button>
+                <button class="jog-btn negative" onclick="jog(2, -577)">-10°</button>
+                <button class="jog-btn negative" onclick="jog(2, -58)">-1°</button>
                 <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(2, 50)">+50</button>
-                <button class="jog-btn" onclick="jog(2, 200)">+200</button>
-                <button class="jog-btn" onclick="jog(2, 800)">+800</button>
-                <button class="jog-btn" onclick="jog(2, 3200)">+Rev</button>
+                <button class="jog-btn" onclick="jog(2, 58)">+1°</button>
+                <button class="jog-btn" onclick="jog(2, 577)">+10°</button>
+                <button class="jog-btn" onclick="jog(2, 1730)">+30°</button>
+                <button class="jog-btn" onclick="jog(2, 5189)">+90°</button>
+                <button class="jog-btn" onclick="jog(2, 20757)">+360°</button>
             </div>
         </div>
 
         <div class="actions">
             <button class="action-btn" onclick="setHome()">Set Home (Zero All)</button>
             <button class="action-btn" onclick="goHome()">Go to Home (0,0,0)</button>
+            <button class="action-btn demo-btn" onclick="runIKDemo()">Run IK Demo</button>
+            <button class="estop-btn" id="estop-btn" onclick="eStop()">E-STOP</button>
         </div>
     </div>
 
@@ -336,6 +402,19 @@
         let stateSub = null;
         let motorsEnabled = false;
         let currentPos = [0, 0, 0];
+
+        const STEPS_PER_REV = 20757;  // Calibrated: 32000 steps = 555° actual
+        const STEPS_PER_DEGREE = STEPS_PER_REV / 360;  // ~57.7
+
+        function stepsToDegrees(steps) {
+            return (steps / STEPS_PER_DEGREE).toFixed(1);
+        }
+
+        function updateDegreeDisplay() {
+            for (let i = 0; i < 3; i++) {
+                document.getElementById('deg-' + i).textContent = stepsToDegrees(currentPos[i]) + '\u00B0';
+            }
+        }
 
         function connect() {
             const url = document.getElementById('ros-url').value;
@@ -388,6 +467,7 @@
                     document.getElementById('pos-0').textContent = currentPos[0];
                     document.getElementById('pos-1').textContent = currentPos[1];
                     document.getElementById('pos-2').textContent = currentPos[2];
+                    updateDegreeDisplay();
                 }
             });
         }
@@ -427,18 +507,17 @@
             // Optimistic update
             currentPos[joint] += delta;
             document.getElementById('pos-' + joint).textContent = currentPos[joint];
+            updateDegreeDisplay();
         }
 
         function setHome() {
             if (!ros || !ros.isConnected) return;
-            // Reset position counters on Arduino via a special topic or direct serial
-            // For now, just reset our local tracking
             currentPos = [0, 0, 0];
             document.getElementById('pos-0').textContent = '0';
             document.getElementById('pos-1').textContent = '0';
             document.getElementById('pos-2').textContent = '0';
+            updateDegreeDisplay();
 
-            // Publish goal at 0 to sync the bridge's internal state
             const msg = new ROSLIB.Message({
                 layout: { dim: [], data_offset: 0 },
                 data: [0, 0, 0]
@@ -454,6 +533,100 @@
                 data: [0, 0, 0]
             });
             goalPub.publish(msg);
+        }
+
+        // --- E-Stop ---
+        function eStop() {
+            if (!ros || !ros.isConnected) return;
+
+            // Immediately disable motors
+            const msg = new ROSLIB.Message({ data: 0 });
+            enablePub.publish(msg);
+
+            motorsEnabled = false;
+            demoRunning = false;
+
+            const btn = document.getElementById('motor-btn');
+            btn.textContent = 'Enable Motors';
+            btn.classList.remove('disable');
+            btn.classList.add('enable');
+
+            const demoBtn = document.querySelector('.demo-btn');
+            demoBtn.textContent = 'Run IK Demo';
+            demoBtn.classList.remove('running');
+        }
+
+        // --- IK Demo ---
+        let demoRunning = false;
+
+        const STEPS_PER_DEG = STEPS_PER_REV / 360;
+
+        function degToSteps(deg) {
+            return Math.round(deg * STEPS_PER_DEG);
+        }
+
+        const ikSequence = [
+            { j: [0, 0, 0], label: 'Home' },
+            { j: [0, -135, -105], label: 'Reach down' },
+            { j: [0, -165, -165], label: 'Pick position' },
+            { j: [0, -105, -85], label: 'Lift' },
+            { j: [90, -105, -85], label: 'Rotate to place' },
+            { j: [90, -145, -125], label: 'Lower to place' },
+            { j: [90, -105, -85], label: 'Retract' },
+            { j: [0, 0, 0], label: 'Home' },
+            { j: [-45, 105, 135], label: 'Look up left' },
+            { j: [45, 105, 135], label: 'Look up right' },
+            { j: [0, 0, 0], label: 'Home' },
+            { j: [0, -180, -180], label: 'Deep reach' },
+            { j: [180, -180, -180], label: 'Sweep 180' },
+            { j: [180, 0, 0], label: 'Upright far' },
+            { j: [0, 0, 0], label: 'Home' },
+        ];
+
+        async function runIKDemo() {
+            if (!ros || !ros.isConnected || !motorsEnabled || demoRunning) return;
+
+            demoRunning = true;
+            const demoBtn = document.querySelector('.demo-btn');
+            demoBtn.textContent = 'Running...';
+            demoBtn.classList.add('running');
+
+            for (let i = 0; i < ikSequence.length; i++) {
+                if (!demoRunning) break;  // E-stop was hit
+
+                const pose = ikSequence[i];
+                const target = [
+                    degToSteps(pose.j[0]),
+                    degToSteps(pose.j[1]),
+                    degToSteps(pose.j[2])
+                ];
+
+                const msg = new ROSLIB.Message({
+                    layout: { dim: [], data_offset: 0 },
+                    data: target
+                });
+                goalPub.publish(msg);
+
+                // Optimistic update
+                currentPos = target;
+                document.getElementById('pos-0').textContent = target[0];
+                document.getElementById('pos-1').textContent = target[1];
+                document.getElementById('pos-2').textContent = target[2];
+                updateDegreeDisplay();
+
+                // Wait for move to complete (estimate based on max delta)
+                const maxDelta = Math.max(
+                    Math.abs(target[0] - (i > 0 ? degToSteps(ikSequence[i-1].j[0]) : 0)),
+                    Math.abs(target[1] - (i > 0 ? degToSteps(ikSequence[i-1].j[1]) : 0)),
+                    Math.abs(target[2] - (i > 0 ? degToSteps(ikSequence[i-1].j[2]) : 0))
+                );
+                const moveTime = (maxDelta * 150 * 2) / 1000000;  // seconds
+                await new Promise(r => setTimeout(r, (moveTime + 0.8) * 1000));
+            }
+
+            demoRunning = false;
+            demoBtn.textContent = 'Run IK Demo';
+            demoBtn.classList.remove('running');
         }
 
         // Auto-connect on load

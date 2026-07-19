@@ -17,6 +17,7 @@
  *   E1          - Enable all motors
  *   E0          - Disable all motors
  *   M<j> <steps> <dir> <delay>  - Move joint j by steps (dir: 0=fwd, 1=rev, delay in us)
+ *   G <pos0> <pos1> <pos2> <delay> - Coordinated move all joints to absolute positions
  *   S           - Query state (returns position counters)
  *   R           - Reset all position counters
  *   R<j>        - Reset single joint position (e.g. R1)
@@ -107,6 +108,59 @@ void moveJoint(uint8_t joint, uint32_t steps, bool forward, uint16_t delayUs) {
 }
 
 /**
+ * Coordinated move: move all 3 joints simultaneously to target positions.
+ * Uses Bresenham-style interpolation so all joints start and stop together.
+ *
+ * @param target    Target positions for joints 0, 1, 2
+ * @param delayUs   Base step delay in microseconds
+ */
+void moveCoordinated(int32_t target[3], uint16_t delayUs) {
+    int32_t delta[3];
+    uint32_t absDelta[3];
+    bool dir[3];
+    uint32_t maxSteps = 0;
+
+    for (uint8_t i = 0; i < 3; i++) {
+        delta[i] = target[i] - position[i];
+        absDelta[i] = abs(delta[i]);
+        dir[i] = (delta[i] >= 0);
+        if (absDelta[i] > maxSteps) maxSteps = absDelta[i];
+    }
+
+    if (maxSteps == 0) return;
+
+    // Set direction pins
+    for (uint8_t i = 0; i < 3; i++) {
+        digitalWrite(dirPins[i], dir[i] ? HIGH : LOW);
+    }
+    delayMicroseconds(5);
+
+    // Bresenham interpolation: step each joint proportionally
+    int32_t error[3] = {0, 0, 0};
+
+    for (uint32_t step = 0; step < maxSteps; step++) {
+        for (uint8_t i = 0; i < 3; i++) {
+            error[i] += absDelta[i];
+            if (error[i] >= (int32_t)maxSteps) {
+                error[i] -= maxSteps;
+                digitalWrite(stepPins[i], HIGH);
+            }
+        }
+        delayMicroseconds(delayUs);
+
+        for (uint8_t i = 0; i < 3; i++) {
+            digitalWrite(stepPins[i], LOW);
+        }
+        delayMicroseconds(delayUs);
+    }
+
+    // Update positions
+    for (uint8_t i = 0; i < 3; i++) {
+        position[i] = target[i];
+    }
+}
+
+/**
  * Parse and execute a structured command from serial.
  * Commands are newline-terminated strings.
  */
@@ -177,6 +231,50 @@ void handleCommand(String &cmd) {
             Serial.print(F("S "));
             Serial.print(motorsEnabled ? '1' : '0');
             Serial.print(' ');
+            Serial.print(position[0]);
+            Serial.print(' ');
+            Serial.print(position[1]);
+            Serial.print(' ');
+            Serial.println(position[2]);
+            break;
+        }
+
+        case 'G': {
+            // G <pos0> <pos1> <pos2> <delay>
+            // Coordinated move all joints to absolute positions simultaneously
+            if (!motorsEnabled) {
+                Serial.println(F("ERR DISABLED"));
+                break;
+            }
+
+            int32_t targets[3];
+            int delayVal = stepDelayUs;
+
+            // Parse: "G pos0 pos1 pos2 [delay]"
+            int idx = cmd.indexOf(' ');
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+            targets[0] = cmd.substring(idx + 1).toInt();
+
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+            targets[1] = cmd.substring(idx + 1).toInt();
+
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+            targets[2] = cmd.substring(idx + 1).toInt();
+
+            // Optional delay parameter
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx > 0) {
+                delayVal = cmd.substring(idx + 1).toInt();
+            }
+
+            if (delayVal < MIN_STEP_DELAY) delayVal = MIN_STEP_DELAY;
+            if (delayVal > MAX_STEP_DELAY) delayVal = MAX_STEP_DELAY;
+
+            moveCoordinated(targets, delayVal);
+
+            Serial.print(F("OK G "));
             Serial.print(position[0]);
             Serial.print(' ');
             Serial.print(position[1]);

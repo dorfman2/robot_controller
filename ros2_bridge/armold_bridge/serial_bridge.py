@@ -149,7 +149,7 @@ class ArmoldSerialBridge(Node):
     def _goal_callback(self, msg: Int16MultiArray) -> None:
         """Handle /stepper_goal topic.
 
-        Moves joints sequentially. Each move blocks until the Arduino responds.
+        Uses the G command for coordinated simultaneous movement of all joints.
         """
         if len(msg.data) < 3:
             self.get_logger().warning(
@@ -161,42 +161,39 @@ class ArmoldSerialBridge(Node):
             self.get_logger().warning('Motors not enabled, ignoring stepper_goal')
             return
 
+        targets = [int(msg.data[0]), int(msg.data[1]), int(msg.data[2])]
+
+        # Skip if no movement needed
+        if targets == self._current_position:
+            return
+
         self._busy = True
         try:
             with self._serial_lock:
-                for joint in range(3):
-                    target = int(msg.data[joint])
-                    current = self._current_position[joint]
-                    delta = target - current
+                cmd = f'G {targets[0]} {targets[1]} {targets[2]} {self.step_delay}'
 
-                    if delta == 0:
-                        continue
+                # Timeout: based on max delta across all joints
+                max_delta = max(
+                    abs(targets[i] - self._current_position[i]) for i in range(3)
+                )
+                move_duration = (max_delta * self.step_delay * 2) / 1_000_000.0
+                timeout = move_duration + 5.0
 
-                    steps = abs(delta)
-                    direction = 0 if delta > 0 else 1
+                response = self._serial_command(cmd, timeout=timeout)
 
-                    cmd = f'M{joint} {steps} {direction} {self.step_delay}'
-
-                    # Timeout: time for move + 5s margin
-                    move_duration = (steps * self.step_delay * 2) / 1_000_000.0
-                    timeout = move_duration + 5.0
-
-                    response = self._serial_command(cmd, timeout=timeout)
-
-                    if response and response.startswith(f'OK M{joint}'):
-                        parts = response.split()
-                        if len(parts) >= 3:
-                            try:
-                                self._current_position[joint] = int(parts[2])
-                            except ValueError:
-                                self._current_position[joint] = target
-                        else:
-                            self._current_position[joint] = target
+                if response and response.startswith('OK G'):
+                    parts = response.split()
+                    if len(parts) >= 4:
+                        try:
+                            self._current_position[0] = int(parts[2])
+                            self._current_position[1] = int(parts[3])
+                            self._current_position[2] = int(parts[4])
+                        except (ValueError, IndexError):
+                            self._current_position = targets
                     else:
-                        self.get_logger().error(
-                            f'Move failed joint {joint}: {response}'
-                        )
-                        break  # Don't continue if a move fails
+                        self._current_position = targets
+                else:
+                    self.get_logger().error(f'Move failed: {response}')
         finally:
             self._busy = False
 
