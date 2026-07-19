@@ -78,14 +78,33 @@ inclusion: always
 
 ## Key Technical Decisions
 - **ROS 2 Jazzy over Humble** — Pi image is Ubuntu 24.04 (Noble), Jazzy is the matching LTS
-- **micro-ROS over rosserial** — micro-ROS is the ROS 2 equivalent; rosserial is ROS 1 only
+- **Einsy RAMBo 1.1a as primary controller** — replaces RAMPS 1.4, 4x TMC2130 via SPI, sensorless homing
 - Mixed motor architecture: steppers (high torque, open-loop) for base joints, smart servos (closed-loop feedback) for wrist joints
-- TMC2208 drivers in standalone STEP/DIR mode (UART available for future current/microstep config)
-- TMC2208 UART pins reserved: D63 (X), D40 (Y), D42 (Z) — wired via 1kΩ resistors to PDN_UART
 - USB serial at 115200 baud for both controllers
 - PlatformIO for firmware development — unified build/upload/monitor across both boards
 - PlatformIO Core installed at `/Users/jdorfman/.platformio/penv/bin` (v6.1.19)
-- Arduino framework for both MCUs (AVR for RAMPS, STM32 for OpenCM)
-- macOS serial port: `/dev/cu.usbserial-AL03LVPB` (for direct dev testing)
-- Pi serial port: `/dev/ttyUSB0` (planned, when Mega connected to Pi)
+- Arduino framework for both MCUs (AVR for RAMPS/Einsy, STM32 for OpenCM)
+- Einsy serial port (Mac): `/dev/cu.usbmodem1101`
+- RAMPS serial port (Mac): `/dev/cu.usbserial-AL03LVPB`
+- Pi serial port: `/dev/ttyUSB0` (when Mega/Einsy connected to Pi)
 - rosbridge WebSocket for Mac → Pi ROS 2 topic access
+
+## Einsy RAMBo TMC2130 Tuned Settings (Validated)
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Current | 1200mA RMS | ~80% of hardware max (1.48A), thermal headroom |
+| Microsteps | 16 + interpolation to 256 | Smooth without MCU overhead |
+| Mode | SpreadCycle | Better dynamic torque for rapid direction changes |
+| Supply | 24V | Sufficient for current speeds; 36-48V for more high-speed torque later |
+| Cruise delay | 30µs | Near max speed with 300-step ramp |
+| Accel/Decel | 300 steps | Smooth but snappy, passes through resonance zone quickly |
+| Start delay | 600µs | Conservative start prevents missed steps |
+
+### Hardware Notes
+- Einsy sense resistors: 0.22Ω → max I_rms = 0.325V / 0.22Ω ≈ 1.48A
+- TMC2130 supports 5-46V supply
+- SPI controls: current, microstepping, mode, StallGuard sensitivity (all runtime-configurable)
+- StallGuard sensorless homing available on DIAG pins (PK2, PK7, PK6, PK3)
+- SpreadCycle preferred over StealthChop for robot arm (dynamic response > silence)
+- 20:1 cycloidal drive on all joints → calibrated to 20,757 steps/output revolution (~57.7 steps/degree)

@@ -10,18 +10,27 @@ inclusion: always
 - Pi user `pi` in `dialout` group for serial port access without root
 
 ## Learnings and Project Insights
-- PlatformIO `build_src_dir` is not a valid per-environment option — use `build_src_filter` instead for multi-firmware projects
+- PlatformIO `build_src_dir` is not a valid per-environment option — use `build_src_filter = -<*> +<../firmware/xxx/src/>` for multi-firmware projects
 - OpenCM 9.04 lacks first-class PlatformIO board support; use `genericSTM32F103CB` or Arduino IDE with Robotis board package
 - RAMPS 1.4 stepper drivers (TMC2208) are active LOW on enable pin
+- Einsy RAMBo TMC2130: also active LOW enable, but controlled via SPI (no jumpers/pots needed)
+- Einsy RAMBo USB shows as `/dev/cu.usbmodem1101` on macOS (ATmega32U2 chip)
+- Einsy global `src_dir` in platformio.ini overrides per-env — must remove and use `build_src_filter` per env
+- TMC2130 API: no `stealth()` member — use `stallguard()` for DRV_STATUS check
+- TMC2130 max current with 0.22Ω sense resistors: 0.325V / 0.22 = ~1.48A RMS
+- Prusa Einsy register scale: 0-63 = 0 to ~0.96A (with Prusa's LDO motors)
+- SpreadCycle preferred over StealthChop for robot arms (dynamic torque > silence)
+- Trapezoidal speed ramp prevents missed steps at startup and reduces resonance
 - macOS serial device naming: FTDI/CP2102 adapters show as `/dev/cu.usbserial-<SERIAL_NUM>`
-- PlatformIO Core 6.1.19 has no `system setup` command — use manual PATH addition or `pio system install shell-commands`
+- PlatformIO Core 6.1.19 has no `system setup` command — use manual PATH addition
 - TMC2208 bad driver diagnosis: if motor free-spins with enable asserted and 24V confirmed, swap the driver
-- TMC2208 Vref ~1.9V corresponds to ~1.7A RMS (with 0.11Ω sense resistor)
 - Ubuntu 24.04 (Noble) requires `noble-updates` in apt sources for `-dev` package dependencies to resolve
 - Cloud-init only runs on first boot — editing `user-data` on an already-booted SD card has no effect
 - ROS 2 Humble is for Ubuntu 22.04 only; Ubuntu 24.04 uses ROS 2 Jazzy
 - Pi may get new IP after re-image — use `armold.local` (mDNS) or check ARP table
 - SSH with passphrase-protected keys requires `ssh-add` before non-interactive use
+- Stepper motor voltage: chopper driver limits current regardless of voltage; higher voltage = more torque at high speed (back-EMF headroom)
+- 24V sufficient for NEMA 17 through 20:1 gearbox; 36-48V only needed for much higher speeds
 
 ## System Architecture
 ```

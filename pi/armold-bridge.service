@@ -1,0 +1,16 @@
+[Unit]
+Description=Armold ROS 2 Serial Bridge (Einsy + RAMPS)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Environment=PATH=/opt/ros/jazzy/bin:/home/pi/.local/bin:/usr/bin:/bin
+ExecStartPre=/bin/sleep 5
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && source /home/pi/armold_ws/install/local_setup.bash && ros2 run armold_bridge serial_bridge --ros-args -p board1_port:=/dev/armold_einsy -p board2_enabled:=false'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

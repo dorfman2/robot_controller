@@ -6,292 +6,93 @@
     <title>Armold - Robot Arm Controller</title>
     <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a2e;
-            color: #e0e0e0;
-            min-height: 100vh;
-            padding: 20px;
+            background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 20px;
         }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        header h1 {
-            font-size: 2rem;
-            color: #00d4ff;
-            margin-bottom: 5px;
-        }
-
-        header p {
-            color: #888;
-            font-size: 0.9rem;
-        }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        header h1 { font-size: 2rem; color: #00d4ff; margin-bottom: 5px; }
+        header p { color: #888; font-size: 0.9rem; }
 
         .status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #16213e;
-            padding: 12px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #16213e; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px;
         }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ff4444;
-        }
-
-        .status-dot.connected {
-            background: #44ff44;
-        }
-
+        .status-indicator { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; }
+        .status-dot.connected { background: #44ff44; }
         .motor-toggle {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
+            padding: 8px 20px; border: none; border-radius: 5px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
         }
-
-        .motor-toggle.enable {
-            background: #2ecc71;
-            color: #fff;
-        }
-
-        .motor-toggle.disable {
-            background: #e74c3c;
-            color: #fff;
-        }
-
-        .motor-toggle:hover {
-            opacity: 0.85;
-            transform: scale(1.02);
-        }
+        .motor-toggle.enable { background: #2ecc71; color: #fff; }
+        .motor-toggle.disable { background: #e74c3c; color: #fff; }
+        .motor-toggle:hover { opacity: 0.85; transform: scale(1.02); }
 
         .joint-panel {
-            background: #16213e;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 15px;
+            background: #16213e; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px;
         }
-
+        .joint-panel.disabled { opacity: 0.5; }
+        .joint-panel.disabled .jog-btn { pointer-events: none; }
         .joint-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
         }
-
-        .joint-header h3 {
-            color: #00d4ff;
-            font-size: 1.1rem;
+        .joint-header h3 { color: #00d4ff; font-size: 1rem; }
+        .joint-header .board-tag {
+            font-size: 0.7rem; background: #0f3460; padding: 2px 8px; border-radius: 3px; color: #888;
         }
-
         .joint-position {
-            font-family: 'Courier New', monospace;
-            font-size: 1.2rem;
-            color: #fff;
-            background: #0f3460;
-            padding: 4px 12px;
-            border-radius: 4px;
+            font-family: 'Courier New', monospace; font-size: 1.1rem; color: #fff;
+            background: #0f3460; padding: 3px 10px; border-radius: 4px;
         }
-
         .joint-degrees {
-            font-family: 'Courier New', monospace;
-            font-size: 1.1rem;
-            color: #00d4ff;
-            margin-left: 8px;
+            font-family: 'Courier New', monospace; font-size: 1rem; color: #00d4ff; margin-left: 8px;
         }
-
-        .joint-controls {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
+        .joint-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .jog-btn {
-            padding: 10px 16px;
-            border: 1px solid #334;
-            border-radius: 6px;
-            background: #0f3460;
-            color: #fff;
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-            min-width: 60px;
-            text-align: center;
+            padding: 8px 12px; border: 1px solid #334; border-radius: 6px; background: #0f3460;
+            color: #fff; font-size: 0.8rem; font-weight: 500; cursor: pointer;
+            transition: all 0.15s; min-width: 50px; text-align: center;
         }
+        .jog-btn:hover { background: #1a4a80; border-color: #00d4ff; }
+        .jog-btn:active { background: #00d4ff; color: #000; }
+        .jog-btn.negative { border-color: #553; }
+        .spacer { width: 8px; }
 
-        .jog-btn:hover {
-            background: #1a4a80;
-            border-color: #00d4ff;
-        }
-
-        .jog-btn:active {
-            background: #00d4ff;
-            color: #000;
-        }
-
-        .jog-btn.negative {
-            border-color: #553;
-        }
-
-        .jog-btn.home {
-            background: #2c3e50;
-            border-color: #666;
-        }
-
-        .jog-btn.home:hover {
-            background: #34495e;
-        }
-
-        .spacer {
-            width: 10px;
-        }
-
-        .actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
+        .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
         .action-btn {
-            padding: 10px 20px;
-            border: 1px solid #334;
-            border-radius: 6px;
-            background: #16213e;
-            color: #ccc;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.15s;
+            padding: 10px 20px; border: 1px solid #334; border-radius: 6px;
+            background: #16213e; color: #ccc; font-size: 0.85rem; cursor: pointer; transition: all 0.15s;
         }
-
-        .action-btn:hover {
-            background: #1a3050;
-            border-color: #00d4ff;
-            color: #fff;
-        }
-
-        .action-btn.demo-btn {
-            background: #1a4a2e;
-            border-color: #2ecc71;
-            color: #2ecc71;
-        }
-
-        .action-btn.demo-btn:hover {
-            background: #2ecc71;
-            color: #000;
-        }
-
-        .action-btn.demo-btn.running {
-            background: #f39c12;
-            border-color: #f39c12;
-            color: #000;
-            cursor: not-allowed;
-        }
-
+        .action-btn:hover { background: #1a3050; border-color: #00d4ff; color: #fff; }
+        .action-btn.demo-btn { background: #1a4a2e; border-color: #2ecc71; color: #2ecc71; }
+        .action-btn.demo-btn:hover { background: #2ecc71; color: #000; }
+        .action-btn.demo-btn.running { background: #f39c12; border-color: #f39c12; color: #000; cursor: not-allowed; }
         .estop-btn {
-            padding: 12px 30px;
-            border: 2px solid #e74c3c;
-            border-radius: 6px;
-            background: #e74c3c;
-            color: #fff;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.1s;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            padding: 12px 30px; border: 2px solid #e74c3c; border-radius: 6px; background: #e74c3c;
+            color: #fff; font-size: 1.1rem; font-weight: 700; cursor: pointer;
+            transition: all 0.1s; text-transform: uppercase; letter-spacing: 1px;
         }
-
-        .estop-btn:hover {
-            background: #c0392b;
-            transform: scale(1.05);
-        }
-
-        .estop-btn:active {
-            background: #922b21;
-            transform: scale(0.98);
-        }
+        .estop-btn:hover { background: #c0392b; transform: scale(1.05); }
+        .estop-btn:active { background: #922b21; transform: scale(0.98); }
 
         .connection-form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 20px;
-            background: #16213e;
-            padding: 12px 20px;
-            border-radius: 8px;
+            display: flex; gap: 10px; align-items: center; margin-bottom: 20px;
+            background: #16213e; padding: 12px 20px; border-radius: 8px;
         }
-
         .connection-form input {
-            background: #0f3460;
-            border: 1px solid #334;
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            width: 250px;
+            background: #0f3460; border: 1px solid #334; color: #fff;
+            padding: 8px 12px; border-radius: 5px; font-size: 0.9rem; width: 250px;
         }
-
         .connection-form button {
-            padding: 8px 16px;
-            background: #00d4ff;
-            color: #000;
-            border: none;
-            border-radius: 5px;
-            font-weight: 600;
-            cursor: pointer;
+            padding: 8px 16px; background: #00d4ff; color: #000; border: none;
+            border-radius: 5px; font-weight: 600; cursor: pointer;
         }
-
-        .speed-control {
-            background: #16213e;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 15px;
-        }
-
-        .speed-control h3 {
-            color: #00d4ff;
-            margin-bottom: 10px;
-        }
-
-        .speed-slider {
-            width: 100%;
-            margin: 10px 0;
-        }
-
-        .speed-value {
-            font-family: 'Courier New', monospace;
-            color: #888;
+        .board-divider {
+            text-align: center; color: #555; font-size: 0.75rem; margin: 8px 0;
+            border-top: 1px solid #2a2a4a; padding-top: 8px;
         }
     </style>
 </head>
@@ -304,7 +105,7 @@
 
         <div class="connection-form">
             <label for="ros-url">ROS Bridge:</label>
-            <input type="text" id="ros-url" value="ws://192.168.1.138:9090">
+            <input type="text" id="ros-url" value="ws://armold.local:9090">
             <button onclick="connect()">Connect</button>
         </div>
 
@@ -318,124 +119,163 @@
             </button>
         </div>
 
+        <!-- Board 1: Einsy RAMBo (Joints 0-3) -->
         <div class="joint-panel" id="joint-0-panel">
             <div class="joint-header">
-                <h3>Joint 0 (Base)</h3>
+                <h3>Joint 0 (Base) <span class="board-tag">Einsy</span></h3>
                 <div>
                     <span class="joint-position" id="pos-0">0</span>
                     <span class="joint-degrees" id="deg-0">0.0°</span>
                 </div>
             </div>
-            <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(0, -20757)">-360°</button>
-                <button class="jog-btn negative" onclick="jog(0, -5189)">-90°</button>
-                <button class="jog-btn negative" onclick="jog(0, -1730)">-30°</button>
-                <button class="jog-btn negative" onclick="jog(0, -577)">-10°</button>
-                <button class="jog-btn negative" onclick="jog(0, -58)">-1°</button>
-                <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(0, 58)">+1°</button>
-                <button class="jog-btn" onclick="jog(0, 577)">+10°</button>
-                <button class="jog-btn" onclick="jog(0, 1730)">+30°</button>
-                <button class="jog-btn" onclick="jog(0, 5189)">+90°</button>
-                <button class="jog-btn" onclick="jog(0, 20757)">+360°</button>
-            </div>
+            <div class="joint-controls" id="ctrl-0"></div>
         </div>
 
         <div class="joint-panel" id="joint-1-panel">
             <div class="joint-header">
-                <h3>Joint 1 (Shoulder)</h3>
+                <h3>Joint 1 (Shoulder) <span class="board-tag">Einsy</span></h3>
                 <div>
                     <span class="joint-position" id="pos-1">0</span>
                     <span class="joint-degrees" id="deg-1">0.0°</span>
                 </div>
             </div>
-            <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(1, -20757)">-360°</button>
-                <button class="jog-btn negative" onclick="jog(1, -5189)">-90°</button>
-                <button class="jog-btn negative" onclick="jog(1, -1730)">-30°</button>
-                <button class="jog-btn negative" onclick="jog(1, -577)">-10°</button>
-                <button class="jog-btn negative" onclick="jog(1, -58)">-1°</button>
-                <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(1, 58)">+1°</button>
-                <button class="jog-btn" onclick="jog(1, 577)">+10°</button>
-                <button class="jog-btn" onclick="jog(1, 1730)">+30°</button>
-                <button class="jog-btn" onclick="jog(1, 5189)">+90°</button>
-                <button class="jog-btn" onclick="jog(1, 20757)">+360°</button>
-            </div>
+            <div class="joint-controls" id="ctrl-1"></div>
         </div>
 
         <div class="joint-panel" id="joint-2-panel">
             <div class="joint-header">
-                <h3>Joint 2 (Elbow)</h3>
+                <h3>Joint 2 (Elbow) <span class="board-tag">Einsy</span></h3>
                 <div>
                     <span class="joint-position" id="pos-2">0</span>
                     <span class="joint-degrees" id="deg-2">0.0°</span>
                 </div>
             </div>
-            <div class="joint-controls">
-                <button class="jog-btn negative" onclick="jog(2, -20757)">-360°</button>
-                <button class="jog-btn negative" onclick="jog(2, -5189)">-90°</button>
-                <button class="jog-btn negative" onclick="jog(2, -1730)">-30°</button>
-                <button class="jog-btn negative" onclick="jog(2, -577)">-10°</button>
-                <button class="jog-btn negative" onclick="jog(2, -58)">-1°</button>
-                <div class="spacer"></div>
-                <button class="jog-btn" onclick="jog(2, 58)">+1°</button>
-                <button class="jog-btn" onclick="jog(2, 577)">+10°</button>
-                <button class="jog-btn" onclick="jog(2, 1730)">+30°</button>
-                <button class="jog-btn" onclick="jog(2, 5189)">+90°</button>
-                <button class="jog-btn" onclick="jog(2, 20757)">+360°</button>
+            <div class="joint-controls" id="ctrl-2"></div>
+        </div>
+
+        <div class="joint-panel" id="joint-3-panel">
+            <div class="joint-header">
+                <h3>Joint 3 (Wrist Pitch) <span class="board-tag">Einsy</span></h3>
+                <div>
+                    <span class="joint-position" id="pos-3">0</span>
+                    <span class="joint-degrees" id="deg-3">0.0°</span>
+                </div>
             </div>
+            <div class="joint-controls" id="ctrl-3"></div>
+        </div>
+
+        <div class="board-divider">Board 2 — RAMPS (waiting for hardware)</div>
+
+        <!-- Board 2: RAMPS (Joints 4-5) -->
+        <div class="joint-panel disabled" id="joint-4-panel">
+            <div class="joint-header">
+                <h3>Joint 4 (Wrist Roll) <span class="board-tag">RAMPS</span></h3>
+                <div>
+                    <span class="joint-position" id="pos-4">0</span>
+                    <span class="joint-degrees" id="deg-4">0.0°</span>
+                </div>
+            </div>
+            <div class="joint-controls" id="ctrl-4"></div>
+        </div>
+
+        <div class="joint-panel disabled" id="joint-5-panel">
+            <div class="joint-header">
+                <h3>Joint 5 (Wrist Yaw) <span class="board-tag">RAMPS</span></h3>
+                <div>
+                    <span class="joint-position" id="pos-5">0</span>
+                    <span class="joint-degrees" id="deg-5">0.0°</span>
+                </div>
+            </div>
+            <div class="joint-controls" id="ctrl-5"></div>
         </div>
 
         <div class="actions">
             <button class="action-btn" onclick="setHome()">Set Home (Zero All)</button>
-            <button class="action-btn" onclick="goHome()">Go to Home (0,0,0)</button>
+            <button class="action-btn" onclick="goHome()">Go to Home</button>
             <button class="action-btn demo-btn" onclick="runIKDemo()">Run IK Demo</button>
             <button class="estop-btn" id="estop-btn" onclick="eStop()">E-STOP</button>
         </div>
     </div>
 
     <script>
+        // --- Configuration ---
+        const NUM_JOINTS = 6;
+        const BOARD1_JOINTS = 4;  // Einsy: joints 0-3
+        const STEPS_PER_REV = 20757;
+        const STEPS_PER_DEG = STEPS_PER_REV / 360;
+
+        // Joint names and limits
+        const JOINTS = [
+            { name: 'Base',        limit: 360 },  // J0
+            { name: 'Shoulder',    limit: 100 },  // J1
+            { name: 'Elbow',       limit: 100 },  // J2
+            { name: 'Wrist Pitch', limit: 100 },  // J3
+            { name: 'Wrist Roll',  limit: 100 },  // J4
+            { name: 'Wrist Yaw',   limit: 100 },  // J5
+        ];
+
+        // --- State ---
         let ros = null;
         let enablePub = null;
         let goalPub = null;
         let stateSub = null;
         let motorsEnabled = false;
-        let currentPos = [0, 0, 0];
+        let currentPos = new Array(NUM_JOINTS).fill(0);
+        let demoRunning = false;
 
-        const STEPS_PER_REV = 20757;  // Calibrated: 32000 steps = 555° actual
-        const STEPS_PER_DEGREE = STEPS_PER_REV / 360;  // ~57.7
+        // --- Generate jog buttons for each joint ---
+        function buildJogButtons() {
+            const jogSteps = [
+                { label: '360°', steps: 20757 },
+                { label: '90°',  steps: 5189 },
+                { label: '30°',  steps: 1730 },
+                { label: '10°',  steps: 577 },
+                { label: '1°',   steps: 58 },
+            ];
 
-        function stepsToDegrees(steps) {
-            return (steps / STEPS_PER_DEGREE).toFixed(1);
-        }
+            for (let j = 0; j < NUM_JOINTS; j++) {
+                const container = document.getElementById('ctrl-' + j);
+                let html = '';
 
-        function updateDegreeDisplay() {
-            for (let i = 0; i < 3; i++) {
-                document.getElementById('deg-' + i).textContent = stepsToDegrees(currentPos[i]) + '\u00B0';
+                // Negative buttons
+                for (const s of jogSteps) {
+                    html += `<button class="jog-btn negative" onclick="jog(${j}, -${s.steps})">-${s.label}</button>`;
+                }
+                html += '<div class="spacer"></div>';
+                // Positive buttons
+                for (const s of [...jogSteps].reverse()) {
+                    html += `<button class="jog-btn" onclick="jog(${j}, ${s.steps})">+${s.label}</button>`;
+                }
+                container.innerHTML = html;
             }
         }
 
+        // --- Helpers ---
+        function stepsToDeg(steps) { return (steps / STEPS_PER_DEG).toFixed(1); }
+        function degToSteps(deg) { return Math.round(deg * STEPS_PER_DEG); }
+
+        function updateDisplay() {
+            for (let i = 0; i < NUM_JOINTS; i++) {
+                document.getElementById('pos-' + i).textContent = currentPos[i];
+                document.getElementById('deg-' + i).textContent = stepsToDeg(currentPos[i]) + '\u00B0';
+            }
+        }
+
+        // --- ROS Connection ---
         function connect() {
             const url = document.getElementById('ros-url').value;
-
-            if (ros) {
-                ros.close();
-            }
+            if (ros) ros.close();
 
             ros = new ROSLIB.Ros({ url: url });
-
             ros.on('connection', function () {
                 document.getElementById('conn-dot').classList.add('connected');
                 document.getElementById('conn-status').textContent = 'Connected';
                 setupTopics();
             });
-
-            ros.on('error', function (error) {
+            ros.on('error', function () {
                 document.getElementById('conn-dot').classList.remove('connected');
                 document.getElementById('conn-status').textContent = 'Error';
             });
-
             ros.on('close', function () {
                 document.getElementById('conn-dot').classList.remove('connected');
                 document.getElementById('conn-status').textContent = 'Disconnected';
@@ -443,184 +283,103 @@
         }
 
         function setupTopics() {
-            enablePub = new ROSLIB.Topic({
-                ros: ros,
-                name: '/enable_motors',
-                messageType: 'std_msgs/msg/Int16'
-            });
-
-            goalPub = new ROSLIB.Topic({
-                ros: ros,
-                name: '/stepper_goal',
-                messageType: 'std_msgs/msg/Int16MultiArray'
-            });
-
-            stateSub = new ROSLIB.Topic({
-                ros: ros,
-                name: '/stepper_state',
-                messageType: 'std_msgs/msg/Int16MultiArray'
-            });
+            enablePub = new ROSLIB.Topic({ ros, name: '/enable_motors', messageType: 'std_msgs/msg/Int16' });
+            goalPub = new ROSLIB.Topic({ ros, name: '/stepper_goal', messageType: 'std_msgs/msg/Int16MultiArray' });
+            stateSub = new ROSLIB.Topic({ ros, name: '/stepper_state', messageType: 'std_msgs/msg/Int16MultiArray' });
 
             stateSub.subscribe(function (msg) {
-                if (msg.data && msg.data.length >= 3) {
-                    currentPos = [msg.data[0], msg.data[1], msg.data[2]];
-                    document.getElementById('pos-0').textContent = currentPos[0];
-                    document.getElementById('pos-1').textContent = currentPos[1];
-                    document.getElementById('pos-2').textContent = currentPos[2];
-                    updateDegreeDisplay();
+                if (msg.data && msg.data.length >= NUM_JOINTS) {
+                    for (let i = 0; i < NUM_JOINTS; i++) currentPos[i] = msg.data[i];
+                    updateDisplay();
                 }
             });
         }
 
+        // --- Motor Control ---
         function toggleMotors() {
             if (!ros || !ros.isConnected) return;
-
             motorsEnabled = !motorsEnabled;
+            enablePub.publish(new ROSLIB.Message({ data: motorsEnabled ? 1 : 0 }));
+
             const btn = document.getElementById('motor-btn');
-
-            const msg = new ROSLIB.Message({ data: motorsEnabled ? 1 : 0 });
-            enablePub.publish(msg);
-
-            if (motorsEnabled) {
-                btn.textContent = 'Disable Motors';
-                btn.classList.remove('enable');
-                btn.classList.add('disable');
-            } else {
-                btn.textContent = 'Enable Motors';
-                btn.classList.remove('disable');
-                btn.classList.add('enable');
-            }
+            btn.textContent = motorsEnabled ? 'Disable Motors' : 'Enable Motors';
+            btn.classList.toggle('enable', !motorsEnabled);
+            btn.classList.toggle('disable', motorsEnabled);
         }
 
         function jog(joint, delta) {
             if (!ros || !ros.isConnected || !motorsEnabled) return;
-
-            const target = [...currentPos];
-            target[joint] += delta;
-
-            const msg = new ROSLIB.Message({
-                layout: { dim: [], data_offset: 0 },
-                data: target
-            });
-            goalPub.publish(msg);
-
-            // Optimistic update
             currentPos[joint] += delta;
-            document.getElementById('pos-' + joint).textContent = currentPos[joint];
-            updateDegreeDisplay();
+            const msg = new ROSLIB.Message({ layout: { dim: [], data_offset: 0 }, data: [...currentPos] });
+            goalPub.publish(msg);
+            updateDisplay();
         }
 
         function setHome() {
             if (!ros || !ros.isConnected) return;
-            currentPos = [0, 0, 0];
-            document.getElementById('pos-0').textContent = '0';
-            document.getElementById('pos-1').textContent = '0';
-            document.getElementById('pos-2').textContent = '0';
-            updateDegreeDisplay();
-
-            const msg = new ROSLIB.Message({
-                layout: { dim: [], data_offset: 0 },
-                data: [0, 0, 0]
-            });
-            goalPub.publish(msg);
+            currentPos.fill(0);
+            updateDisplay();
+            goalPub.publish(new ROSLIB.Message({ layout: { dim: [], data_offset: 0 }, data: [...currentPos] }));
         }
 
         function goHome() {
             if (!ros || !ros.isConnected || !motorsEnabled) return;
-
-            const msg = new ROSLIB.Message({
-                layout: { dim: [], data_offset: 0 },
-                data: [0, 0, 0]
-            });
-            goalPub.publish(msg);
+            const home = new Array(NUM_JOINTS).fill(0);
+            goalPub.publish(new ROSLIB.Message({ layout: { dim: [], data_offset: 0 }, data: home }));
         }
 
         // --- E-Stop ---
         function eStop() {
             if (!ros || !ros.isConnected) return;
-
-            // Immediately disable motors
-            const msg = new ROSLIB.Message({ data: 0 });
-            enablePub.publish(msg);
-
+            enablePub.publish(new ROSLIB.Message({ data: 0 }));
             motorsEnabled = false;
             demoRunning = false;
-
-            const btn = document.getElementById('motor-btn');
-            btn.textContent = 'Enable Motors';
-            btn.classList.remove('disable');
-            btn.classList.add('enable');
-
-            const demoBtn = document.querySelector('.demo-btn');
-            demoBtn.textContent = 'Run IK Demo';
-            demoBtn.classList.remove('running');
+            document.getElementById('motor-btn').textContent = 'Enable Motors';
+            document.getElementById('motor-btn').classList.remove('disable');
+            document.getElementById('motor-btn').classList.add('enable');
+            document.querySelector('.demo-btn').textContent = 'Run IK Demo';
+            document.querySelector('.demo-btn').classList.remove('running');
         }
 
-        // --- IK Demo ---
-        let demoRunning = false;
-
-        const STEPS_PER_DEG = STEPS_PER_REV / 360;
-
-        function degToSteps(deg) {
-            return Math.round(deg * STEPS_PER_DEG);
-        }
-
+        // --- IK Demo (6-DOF, joints 4-5 at 0 until hardware ready) ---
         const ikSequence = [
-            { j: [0, 0, 0], label: 'Home' },
-            { j: [0, -135, -105], label: 'Reach down' },
-            { j: [0, -165, -165], label: 'Pick position' },
-            { j: [0, -105, -85], label: 'Lift' },
-            { j: [90, -105, -85], label: 'Rotate to place' },
-            { j: [90, -145, -125], label: 'Lower to place' },
-            { j: [90, -105, -85], label: 'Retract' },
-            { j: [0, 0, 0], label: 'Home' },
-            { j: [-45, 105, 135], label: 'Look up left' },
-            { j: [45, 105, 135], label: 'Look up right' },
-            { j: [0, 0, 0], label: 'Home' },
-            { j: [0, -180, -180], label: 'Deep reach' },
-            { j: [180, -180, -180], label: 'Sweep 180' },
-            { j: [180, 0, 0], label: 'Upright far' },
-            { j: [0, 0, 0], label: 'Home' },
+            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
+            { j: [0, -135, -105, -30, 0, 0], label: 'Reach down' },
+            { j: [0, -165, -165, -45, 0, 0], label: 'Pick position' },
+            { j: [0, -105, -85, -20, 0, 0], label: 'Lift' },
+            { j: [90, -105, -85, -20, 0, 0], label: 'Rotate to place' },
+            { j: [90, -145, -125, -35, 0, 0], label: 'Lower to place' },
+            { j: [90, -105, -85, -20, 0, 0], label: 'Retract' },
+            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
+            { j: [-45, 105, 135, 45, 0, 0], label: 'Look up left' },
+            { j: [45, 105, 135, 45, 0, 0], label: 'Look up right' },
+            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
+            { j: [0, -180, -180, -60, 0, 0], label: 'Deep reach' },
+            { j: [180, -180, -180, -60, 0, 0], label: 'Sweep 180' },
+            { j: [180, 0, 0, 0, 0, 0], label: 'Upright far' },
+            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
         ];
 
         async function runIKDemo() {
             if (!ros || !ros.isConnected || !motorsEnabled || demoRunning) return;
-
             demoRunning = true;
             const demoBtn = document.querySelector('.demo-btn');
             demoBtn.textContent = 'Running...';
             demoBtn.classList.add('running');
 
             for (let i = 0; i < ikSequence.length; i++) {
-                if (!demoRunning) break;  // E-stop was hit
-
+                if (!demoRunning) break;
                 const pose = ikSequence[i];
-                const target = [
-                    degToSteps(pose.j[0]),
-                    degToSteps(pose.j[1]),
-                    degToSteps(pose.j[2])
-                ];
+                const target = pose.j.map(d => degToSteps(d));
 
-                const msg = new ROSLIB.Message({
-                    layout: { dim: [], data_offset: 0 },
-                    data: target
-                });
-                goalPub.publish(msg);
+                goalPub.publish(new ROSLIB.Message({ layout: { dim: [], data_offset: 0 }, data: target }));
+                for (let k = 0; k < NUM_JOINTS; k++) currentPos[k] = target[k];
+                updateDisplay();
 
-                // Optimistic update
-                currentPos = target;
-                document.getElementById('pos-0').textContent = target[0];
-                document.getElementById('pos-1').textContent = target[1];
-                document.getElementById('pos-2').textContent = target[2];
-                updateDegreeDisplay();
-
-                // Wait for move to complete (estimate based on max delta)
-                const maxDelta = Math.max(
-                    Math.abs(target[0] - (i > 0 ? degToSteps(ikSequence[i-1].j[0]) : 0)),
-                    Math.abs(target[1] - (i > 0 ? degToSteps(ikSequence[i-1].j[1]) : 0)),
-                    Math.abs(target[2] - (i > 0 ? degToSteps(ikSequence[i-1].j[2]) : 0))
-                );
-                const moveTime = (maxDelta * 150 * 2) / 1000000;  // seconds
+                // Estimate move time from max delta
+                const prev = i > 0 ? ikSequence[i-1].j.map(d => degToSteps(d)) : new Array(NUM_JOINTS).fill(0);
+                const maxDelta = Math.max(...target.map((t, k) => Math.abs(t - prev[k])));
+                const moveTime = (maxDelta * 30 * 2) / 1000000;  // 30µs cruise
                 await new Promise(r => setTimeout(r, (moveTime + 0.8) * 1000));
             }
 
@@ -629,8 +388,11 @@
             demoBtn.classList.remove('running');
         }
 
-        // Auto-connect on load
-        window.addEventListener('load', connect);
+        // --- Init ---
+        window.addEventListener('load', function () {
+            buildJogButtons();
+            connect();
+        });
     </script>
 </body>
 </html>
