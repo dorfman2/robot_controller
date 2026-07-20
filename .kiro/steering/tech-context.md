@@ -100,14 +100,18 @@ inclusion: always
 | Microsteps | 16 + interpolation to 256 | Smooth without MCU overhead |
 | Mode | SpreadCycle | Better dynamic torque for rapid direction changes |
 | Supply | 24V | Sufficient for current speeds; 36-48V for more high-speed torque later |
-| Cruise delay | 30µs | Near max speed with 300-step ramp |
-| Accel/Decel | 300 steps | Smooth but snappy, passes through resonance zone quickly |
+| Cruise delay | 20µs | Max speed with sinusoidal ramp |
+| Accel/Decel | 300 steps | Sinusoidal S-curve profile, passes through resonance zone quickly |
 | Start delay | 600µs | Conservative start prevents missed steps |
+| Ramp shape | Sinusoidal (64-entry cosine table) | Zero jerk at transitions, smoother than linear |
+| StallGuard | Disabled (sgt=63) | Cycloidal gearbox drag causes false triggers at all sensitivity levels |
 
 ### Hardware Notes
 - Einsy sense resistors: 0.22Ω → max I_rms = 0.325V / 0.22Ω ≈ 1.48A
 - TMC2130 supports 5-46V supply
 - SPI controls: current, microstepping, mode, StallGuard sensitivity (all runtime-configurable)
-- StallGuard sensorless homing available on DIAG pins (PK2, PK7, PK6, PK3)
+- StallGuard sensorless homing available on DIAG pins (PK2, PK7, PK6, PK3) — future use at slower speeds
 - SpreadCycle preferred over StealthChop for robot arm (dynamic response > silence)
-- 20:1 cycloidal drive on all joints → calibrated to 20,757 steps/output revolution (~57.7 steps/degree)
+- 20:1 cycloidal drive on all joints → calibrated to 83,028 steps/output revolution (~230.6 steps/degree)
+- USB serial via ATmega32U2 bridge — max reliable baud: 250,000 (NOT native CDC)
+- Segment protocol (`X` command) allows Pi-side trajectory planning with MCU interpolation

@@ -27,6 +27,13 @@ A six-axis robot arm controller built on commodity 3D printer electronics. Contr
 ```
 Browser (Web UI) ←→ WebSocket ←→ armold_controller (Pi daemon)
                                          │
+                                  ┌──────┴───────┐
+                                  │  Trajectory  │
+                                  │  Planner     │
+                                  │  (S-curve,   │
+                                  │   lookahead) │
+                                  └──────┬───────┘
+                                         │
                                     Serial Threads
                                          │
                               ┌──────────┴──────────┐
@@ -40,18 +47,20 @@ Browser (Web UI) ←→ WebSocket ←→ armold_controller (Pi daemon)
                         Cycloidal 20:1          Cycloidal 20:1
 ```
 
-Single Python daemon on the Pi handles WebSocket connections, command queuing, and serial communication. No ROS in the motion path.
+Single Python daemon on the Pi handles trajectory planning (S-curve profiles, junction velocity optimization, lookahead), WebSocket connections, and serial communication. The MCU executes segment commands with sinusoidal interpolation — no trajectory math on the ATmega.
 
 ## Features
 
 - **Coordinated multi-joint motion** — Bresenham interpolation, all joints start/stop together
-- **Trapezoidal speed ramping** — smooth acceleration/deceleration (300-step ramp, 30µs cruise)
+- **Sinusoidal S-curve acceleration** — cosine-shaped ramp via lookup table, eliminates jerk at transitions
+- **Pi-side trajectory planner** — S-curve profiles computed on Pi, segment commands sent to MCU
+- **Junction velocity optimization** — lookahead across moves, no deceleration-to-zero between sequential jogs
+- **Trapezoidal speed ramping** — fallback profile (300-step ramp, 20µs cruise)
 - **Web UI** — real-time jog controls, IK demo, speed profiles, motion queue display
-- **Unified halt system** — user E-STOP and StallGuard collision detection share one code path
-- **Collision detection** — TMC2130 StallGuard monitors motor load during moves, halts on impact
+- **Unified halt system** — user E-STOP and serial interrupt share one code path in firmware
 - **Auto-reconnection** — survives USB disconnect/reconnect without manual intervention
 - **Position tracking** — firmware-authoritative, synced on every connect
-- **Multiple speed profiles** — Slow (200µs), Medium (80µs), Max (30µs)
+- **Multiple speed profiles** — Slow (200µs), Medium (80µs), Max (20µs)
 - **Deploy pipeline** — flash firmware from Mac via Pi over SSH
 
 ## Quick Start
@@ -95,22 +104,37 @@ Navigate to `http://armold.local:9090` (or open `web/index.html` locally and con
 
 ```
 firmware/
-├── einsy/src/main.cpp      # Einsy RAMBo firmware (TMC2130 SPI, 4-axis)
+├── einsy/src/main.cpp      # Einsy RAMBo firmware (TMC2130 SPI, sinusoidal ramp, segment protocol)
 ├── ramps/src/main.cpp      # RAMPS firmware (basic STEP/DIR, 3-axis)
 armold_controller/          # Motion control daemon (Pi)
-├── main.py                 # Entry point
-├── serial_board.py         # Per-board serial thread + command queue
-├── motion_manager.py       # Move coordination, jog stacking, halt
-├── websocket_server.py     # asyncio WebSocket + JSON protocol
+├── __init__.py             # Package init, version
+├── __main__.py             # Entry point, config, signal handling, health check
+├── main.py                 # Convenience entry point
+├── command.py              # Command dataclass with sequence IDs and lifecycle
+├── serial_board.py         # Per-board serial thread + command queue + ACK
+├── motion_manager.py       # Move coordination, jog stacking, halt, trajectory planner
+├── ws_server.py            # asyncio WebSocket + JSON protocol
+├── tests/test_core.py      # Unit tests (13 tests)
 web/
-├── index.html              # Control UI (connects via WebSocket)
+├── index.html              # Control UI (native WebSocket, no roslib.js)
 scripts/
 ├── deploy.sh               # Mac → Pi firmware deploy + flash
+├── deploy_controller.sh    # Mac → Pi controller deploy
 ├── ik_demo.py              # Standalone IK demo (direct serial)
+├── check_serial.py         # Serial port diagnostic
+├── serial_read_port.py     # Serial read utility
+├── einsy_cmd.py            # Direct command utility
+├── reset_zero.py           # Position reset utility
 pi/
-├── armold.service          # systemd service file
+├── armold.service          # systemd service file (single daemon)
 ├── install_services.sh     # Service installer
+├── setup_ssh.sh            # SSH key setup (Mac → Pi)
+├── ssh_config_entry        # SSH config reference
+├── README.md               # Pi setup documentation
 platformio.ini              # Multi-environment build config
+.kiro/specs/
+├── stable-bridge/          # Daemon architecture spec (implemented)
+├── klipper-style-planner/  # Trajectory planner spec (Phase A+B implemented)
 ```
 
 ## Firmware Protocol
@@ -121,6 +145,7 @@ Serial at 115200 baud. Newline-terminated commands:
 |---------|-------------|
 | `E1` / `E0` | Enable / disable motors |
 | `G <p0> <p1> <p2> <p3> [delay]` | Coordinated move to absolute positions |
+| `X <joint> <steps> <start_int> <end_int> <curve>` | Segment move (Pi-planned, sinusoidal interpolation) |
 | `M<j> <steps> <dir> <delay>` | Move single joint |
 | `S` | Query state (returns positions) |
 | `R` / `R<j>` | Reset position counters (all or single joint) |
@@ -154,10 +179,11 @@ JSON messages over native WebSocket (port 9090):
 | Current | 1200mA RMS | ~80% of hardware max, thermal headroom |
 | Microsteps | 16 + interpolation to 256 | Smooth without MCU step-rate overhead |
 | Mode | SpreadCycle | Dynamic torque for rapid direction changes |
-| Cruise delay | 30µs | Near max speed with 300-step ramp |
-| Accel/Decel | 300 steps | Passes through resonance zone quickly |
+| Cruise delay | 20µs | Max speed with sinusoidal ramp |
+| Accel/Decel | 300 steps | Sinusoidal profile, passes through resonance quickly |
 | Start delay | 600µs | Conservative start prevents missed steps |
-| StallGuard sgt | 4 | Collision sensitivity (tune per joint) |
+| StallGuard | Disabled (sgt=63) | False triggers from cycloidal gearbox drag |
+| Ramp shape | Sinusoidal (cos lookup table) | Zero jerk at transitions |
 
 ## Joint Limits
 

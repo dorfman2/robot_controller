@@ -206,6 +206,47 @@ class SerialBoard:
         """
         self._pending_target = list(target)
 
+    def submit_segment(
+        self,
+        joint: int,
+        direction: bool,
+        step_count: int,
+        start_interval: int,
+        end_interval: int,
+        curve_type: int = 0,
+    ) -> None:
+        """Submit a motion segment command to the board.
+
+        Sends the segment-based 'X' command which the MCU interpolates
+        internally. This is the Phase B protocol for Pi-side trajectory
+        planning.
+
+        Format: X <joint> <steps> <dir> <start_interval> <end_interval> <curve_type>
+
+        Args:
+            joint: Joint index on this board (0-based).
+            direction: True for forward (dir=0 in firmware), False for reverse (dir=1).
+            step_count: Number of steps in this segment.
+            start_interval: Microseconds between steps at segment start.
+            end_interval: Microseconds between steps at segment end.
+            curve_type: Interpolation type (0=linear, 1=sinusoidal).
+        """
+        if step_count <= 0:
+            return
+        dir_val = 0 if direction else 1
+        payload = (
+            f"X {joint} {step_count} {dir_val} "
+            f"{start_interval} {end_interval} {curve_type}"
+        )
+        # Estimate timeout from step count and max interval
+        max_interval = max(start_interval, end_interval)
+        avg_interval = (start_interval + end_interval) // 2
+        move_duration = (step_count * avg_interval * 2) / 1_000_000.0
+        timeout = move_duration + 5.0
+
+        cmd = Command(payload=payload, timeout=timeout)
+        self.submit(cmd)
+
     def _run(self) -> None:
         """Serial thread main loop. Connects, processes queue, reconnects."""
         while not self._stop_event.is_set():
@@ -370,6 +411,9 @@ class SerialBoard:
         if response.startswith("OK G"):
             self._parse_position_response(response)
             cmd.complete(response, CommandStatus.OK)
+        elif response.startswith("OK X"):
+            self._parse_segment_response(response)
+            cmd.complete(response, CommandStatus.OK)
         elif response.startswith("OK"):
             cmd.complete(response, CommandStatus.OK)
         elif response.startswith("ERR"):
@@ -398,6 +442,29 @@ class SerialBoard:
                 except ValueError:
                     pass
         self._pending_target = list(self._position)
+
+    def _parse_segment_response(self, response: str) -> None:
+        """Parse position from OK X response.
+
+        Format: 'OK X<joint> <position>'
+        Updates the position for the specified joint after a segment executes.
+
+        Args:
+            response: Raw response string.
+        """
+        parts = response.split()
+        if len(parts) >= 3:
+            try:
+                # Extract joint index from "X<j>" token
+                joint_str = parts[1]
+                if joint_str.startswith("X") and len(joint_str) > 1:
+                    joint = int(joint_str[1:])
+                    pos = int(parts[2])
+                    if 0 <= joint < self.num_joints:
+                        self._position[joint] = pos
+                        self._pending_target[joint] = pos
+            except (ValueError, IndexError):
+                pass
 
     def _parse_state_response(self, response: str) -> None:
         """Parse state from S response.

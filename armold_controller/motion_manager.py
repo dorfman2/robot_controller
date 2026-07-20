@@ -13,6 +13,12 @@ from typing import Any, Callable, Optional
 
 from armold_controller.command import Command, CommandStatus
 from armold_controller.serial_board import SerialBoard
+from armold_controller.trajectory_planner import (
+    CurveType,
+    JointConfig,
+    Segment,
+    TrajectoryPlanner,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +72,11 @@ class MotionManager:
         # Combined state across all boards
         self._enabled: bool = False
         self._has_pending: bool = False
+
+        # Trajectory planner for S-curve profile generation
+        total_joints = sum(b.num_joints for b in boards.values())
+        self._planner = TrajectoryPlanner(num_joints=total_joints)
+        self._use_planner: bool = False  # Off by default, opt-in
 
         # Broadcast callback (set by WebSocket server)
         self._broadcast_fn: Optional[Callable[[dict[str, Any]], None]] = None
@@ -251,6 +262,83 @@ class MotionManager:
         """
         self.step_delay = max(self.min_delay, min(self.max_delay, delay_us))
         logger.info("Speed set to %d us", self.step_delay)
+
+    def set_planner_mode(self, enabled: bool) -> None:
+        """Enable or disable the Pi-side trajectory planner.
+
+        When enabled, moves use S-curve segments instead of the firmware's
+        built-in trapezoidal ramp. This provides smoother motion profiles
+        and (with lookahead) eliminates pauses between sequential moves.
+
+        Args:
+            enabled: True to use trajectory planner, False for legacy G commands.
+        """
+        self._use_planner = enabled
+        logger.info("Planner mode: %s", "enabled" if enabled else "disabled")
+
+    def move_with_segments(
+        self,
+        target: list[int],
+        callback: Optional[Callable[[int, Optional[str], CommandStatus], None]] = None,
+    ) -> int:
+        """Execute a move using the trajectory planner's segment protocol.
+
+        Computes S-curve profile on the Pi and sends individual segment
+        commands (X) to the MCU for execution with interval interpolation.
+
+        Args:
+            target: List of absolute target positions (6 joints).
+            callback: Optional completion callback (called after last segment).
+
+        Returns:
+            Command sequence ID of the last submitted segment.
+        """
+        if len(target) < NUM_JOINTS:
+            target = target + [0] * (NUM_JOINTS - len(target))
+
+        # Get current position across all boards
+        current_pos: list[int] = []
+        for name, board in self.boards.items():
+            current_pos.extend(board.position)
+        while len(current_pos) < NUM_JOINTS:
+            current_pos.append(0)
+
+        # Compute S-curve segments
+        segments = self._planner.plan_move(current_pos, target)
+
+        if not segments:
+            return 0
+
+        # Dispatch segments to appropriate boards
+        cmd_id = 0
+        offset = 0
+        for name, board in self.boards.items():
+            board_segments = [
+                s for s in segments
+                if offset <= s.joint < offset + board.num_joints
+            ]
+
+            # Update pending target for this board
+            board_target = target[offset: offset + board.num_joints]
+            board.set_pending_target(board_target)
+
+            for seg in board_segments:
+                local_joint = seg.joint - offset
+                board.submit_segment(
+                    joint=local_joint,
+                    direction=seg.direction,
+                    step_count=seg.step_count,
+                    start_interval=seg.start_interval,
+                    end_interval=seg.end_interval,
+                    curve_type=int(seg.curve_type),
+                )
+                # Track last command ID for callback
+                cmd_id = board._command_queue.qsize()
+
+            offset += board.num_joints
+
+        self._has_pending = True
+        return cmd_id
 
     def set_home(self) -> None:
         """Reset firmware position counters to zero on all boards."""

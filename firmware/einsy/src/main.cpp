@@ -143,8 +143,32 @@ void setMotorsEnabled(bool enabled) {
 }
 
 /**
- * Calculate step delay for trapezoidal acceleration profile.
- * Ramps quickly from START_STEP_DELAY down to cruiseDelay, then back up.
+ * 64-entry sinusoidal (half-cosine) lookup table for smooth acceleration.
+ *
+ * Values represent a normalized 0-255 scale of the half-cosine function:
+ *   table[i] = round(255 * (1 - cos(i * PI / 63)) / 2)
+ *
+ * Index 0 = 0 (start of ramp, still at START_DELAY)
+ * Index 63 = 255 (end of ramp, reached CRUISE_DELAY)
+ *
+ * This produces an S-shaped transition that eliminates the jerk
+ * discontinuity of a linear ramp — acceleration eases in and eases out.
+ */
+static const uint8_t PROGMEM sinTable[64] = {
+      0,   0,   1,   1,   3,   4,   6,   8,
+     10,  13,  16,  19,  22,  26,  30,  34,
+     38,  43,  48,  53,  58,  64,  69,  75,
+     81,  87,  93,  99, 105, 112, 118, 124,
+    131, 137, 143, 150, 156, 162, 168, 174,
+    180, 186, 191, 197, 202, 207, 212, 217,
+    221, 225, 229, 233, 236, 239, 242, 245,
+    247, 249, 251, 252, 254, 254, 255, 255
+};
+
+/**
+ * Calculate step delay using sinusoidal (half-cosine) acceleration profile.
+ * Smoothly ramps from START_STEP_DELAY down to cruiseDelay using the
+ * sinusoidal lookup table, then back up symmetrically for deceleration.
  *
  * @param step        Current step index (0-based)
  * @param totalSteps  Total steps in the move
@@ -164,16 +188,20 @@ uint16_t rampDelay(uint32_t step, uint32_t totalSteps, uint16_t cruiseDelay) {
     uint32_t decelStart = totalSteps - decelSteps;
 
     if (step < accelSteps) {
-        // Accelerating: linearly interpolate from START to cruise
+        // Accelerating: sinusoidal ease-in from START_STEP_DELAY to cruiseDelay
+        uint8_t idx = (uint8_t)((step * 63UL) / accelSteps);
+        uint8_t t = pgm_read_byte(&sinTable[idx]);
         uint32_t range = START_STEP_DELAY - cruiseDelay;
-        return START_STEP_DELAY - (uint16_t)((range * step) / accelSteps);
+        return START_STEP_DELAY - (uint16_t)((range * t) / 255);
     } else if (step >= decelStart) {
-        // Decelerating: linearly interpolate from cruise to START
+        // Decelerating: sinusoidal ease-out from cruiseDelay to START_STEP_DELAY
         uint32_t stepsIntoDecel = step - decelStart;
+        uint8_t idx = (uint8_t)((stepsIntoDecel * 63UL) / decelSteps);
+        uint8_t t = pgm_read_byte(&sinTable[idx]);
         uint32_t range = START_STEP_DELAY - cruiseDelay;
-        return cruiseDelay + (uint16_t)((range * stepsIntoDecel) / decelSteps);
+        return cruiseDelay + (uint16_t)((range * t) / 255);
     } else {
-        // Cruising
+        // Cruising at target speed
         return cruiseDelay;
     }
 }
@@ -200,6 +228,96 @@ void moveJoint(uint8_t joint, uint32_t steps, bool forward, uint16_t cruiseDelay
     } else {
         position[joint] -= steps;
     }
+}
+
+/**
+ * Execute a single motion segment with interval interpolation.
+ *
+ * The Pi-side trajectory planner computes the S-curve and sends segments
+ * with start/end intervals. The MCU smoothly interpolates between them.
+ *
+ * @param joint          Joint index (0-3)
+ * @param steps          Number of steps in this segment
+ * @param forward        Direction (true=forward)
+ * @param startInterval  Microseconds between steps at segment start
+ * @param endInterval    Microseconds between steps at segment end
+ * @param curveType      0=linear interpolation, 1=sinusoidal (lookup table)
+ * @return               true if completed normally, false if interrupted by E-STOP
+ */
+bool moveSegment(uint8_t joint, uint32_t steps, bool forward,
+                 uint16_t startInterval, uint16_t endInterval,
+                 uint8_t curveType) {
+    if (joint >= NUM_JOINTS || steps == 0) return true;
+
+    // Clamp intervals
+    if (startInterval < MIN_STEP_DELAY) startInterval = MIN_STEP_DELAY;
+    if (endInterval < MIN_STEP_DELAY) endInterval = MIN_STEP_DELAY;
+    if (startInterval > MAX_STEP_DELAY) startInterval = MAX_STEP_DELAY;
+    if (endInterval > MAX_STEP_DELAY) endInterval = MAX_STEP_DELAY;
+
+    digitalWrite(dirPins[joint], forward ? HIGH : LOW);
+    delayMicroseconds(5);
+
+    for (uint32_t i = 0; i < steps; i++) {
+        uint16_t d;
+
+        if (startInterval == endInterval) {
+            // Constant speed segment
+            d = startInterval;
+        } else if (curveType == 1 && steps > 1) {
+            // Sinusoidal interpolation via lookup table
+            uint8_t idx = (uint8_t)((i * 63UL) / (steps - 1));
+            uint8_t t = pgm_read_byte(&sinTable[idx]);
+            if (endInterval > startInterval) {
+                // Decelerating: start fast, end slow
+                uint32_t range = endInterval - startInterval;
+                d = startInterval + (uint16_t)((range * t) / 255);
+            } else {
+                // Accelerating: start slow, end fast
+                uint32_t range = startInterval - endInterval;
+                d = startInterval - (uint16_t)((range * t) / 255);
+            }
+        } else {
+            // Linear interpolation (default)
+            if (endInterval > startInterval) {
+                uint32_t range = endInterval - startInterval;
+                d = startInterval + (uint16_t)((range * i) / steps);
+            } else {
+                uint32_t range = startInterval - endInterval;
+                d = startInterval - (uint16_t)((range * i) / steps);
+            }
+        }
+
+        // Check for E-STOP every 16 steps during segment execution
+        if ((i & 0x0F) == 0 && Serial.available()) {
+            char c = Serial.peek();
+            if (c == 'E') {
+                String ecmd = Serial.readStringUntil('\n');
+                setMotorsEnabled(false);
+                // Update position with steps completed so far
+                if (forward) {
+                    position[joint] += i;
+                } else {
+                    position[joint] -= i;
+                }
+                Serial.println(F("OK E0"));
+                return false;
+            }
+        }
+
+        digitalWrite(stepPins[joint], HIGH);
+        delayMicroseconds(d);
+        digitalWrite(stepPins[joint], LOW);
+        delayMicroseconds(d);
+    }
+
+    // Update position
+    if (forward) {
+        position[joint] += steps;
+    } else {
+        position[joint] -= steps;
+    }
+    return true;
 }
 
 /**
@@ -510,6 +628,56 @@ void handleCommand(String &cmd) {
             } else {
                 Serial.println(F("ERR PARAM"));
             }
+            break;
+        }
+
+        case 'X': {
+            // Segment move: X <joint> <steps> <dir> <start_interval> <end_interval> <curve_type>
+            // Executes a single motion segment with interval interpolation.
+            // Pi-side planner computes the S-curve; MCU interpolates within segment.
+            if (!motorsEnabled) { Serial.println(F("ERR DISABLED")); break; }
+
+            int idx = cmd.indexOf(' ');
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+
+            int joint = cmd.substring(idx + 1).toInt();
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0 || joint < 0 || joint >= NUM_JOINTS) {
+                Serial.println(F("ERR PARAM")); break;
+            }
+
+            long steps = cmd.substring(idx + 1).toInt();
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0 || steps <= 0) { Serial.println(F("ERR PARAM")); break; }
+
+            int dir = cmd.substring(idx + 1).toInt();
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+
+            int startInt = cmd.substring(idx + 1).toInt();
+            idx = cmd.indexOf(' ', idx + 1);
+            if (idx < 0) { Serial.println(F("ERR PARAM")); break; }
+
+            int endInt = cmd.substring(idx + 1).toInt();
+            idx = cmd.indexOf(' ', idx + 1);
+
+            int curveType = 0;
+            if (idx > 0) {
+                curveType = cmd.substring(idx + 1).toInt();
+            }
+
+            bool completed = moveSegment(
+                (uint8_t)joint, (uint32_t)steps, (dir == 0),
+                (uint16_t)startInt, (uint16_t)endInt, (uint8_t)curveType
+            );
+
+            if (completed) {
+                Serial.print(F("OK X"));
+                Serial.print(joint);
+                Serial.print(' ');
+                Serial.println(position[joint]);
+            }
+            // If not completed (E-STOP), the E0 response was already sent
             break;
         }
 
