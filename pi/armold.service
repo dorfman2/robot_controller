@@ -1,0 +1,26 @@
+[Unit]
+Description=Armold Motion Controller Daemon
+Documentation=https://github.com/dorfman2/Armold
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=dialout
+WorkingDirectory=/home/pi/Armold
+ExecStart=/usr/bin/python3 -m armold_controller
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/dev/armold_einsy /dev/armold_ramps
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

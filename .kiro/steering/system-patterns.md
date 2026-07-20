@@ -31,32 +31,51 @@ inclusion: always
 - SSH with passphrase-protected keys requires `ssh-add` before non-interactive use
 - Stepper motor voltage: chopper driver limits current regardless of voltage; higher voltage = more torque at high speed (back-EMF headroom)
 - 24V sufficient for NEMA 17 through 20:1 gearbox; 36-48V only needed for much higher speeds
+- Calibration re-measured: 83,028 steps = 360° actual output (not 20,757 — original measurement was off by 4x)
+- Int16MultiArray overflows at ±32767 steps — switched to Int32MultiArray for position values
+- ROS 2 bridge fundamental issues: blocking callback thread, DDS type cache on restart, rosbridge stale connections
+- New architecture: single Python daemon (asyncio + serial threads) replaces 3 ROS services
+- Pi DHCP reservation: 192.168.1.136. Use armold.local (mDNS) as primary, IP as fallback
+- `PartOf=` systemd directive causes rosbridge to stop when bridge stops but not restart — use `Restart=always`
+- `ProtectSystem=strict` and `ReadWritePaths` in systemd cause NAMESPACE (226) errors on Pi — remove hardening directives
+- Einsy RAMBo doesn't reset on USB serial open (ATmega32U2 issue) — daemon must fallback to direct `S` sync if no READY banner
+- Daemon WorkingDirectory must match actual path on Pi (`/home/pi/armold_firmware` not `/home/pi/Armold`)
+- StallGuard position tracking on abort: calculate from `(absDelta[j] * step / maxSteps)` to report where motor actually stopped
+- set_home must reset both `_pending_target` AND `_position` on the board object (not just firmware `R` command)
 
 ## System Architecture
 ```
-Mac (dev) ←── Wi-Fi ──→ Pi 4 (ROS 2 Jazzy) ←── USB ──→ Arduino Mega 2560
-                                                              │
-                                                        RAMPS 1.4 + TMC2208
-                                                              │
-                                                     Stepper Motors (J0-J2)
+Browser (Web UI) ←── WebSocket (9090) ──→ armold_controller (Pi daemon)
+                                                │
+                                           Serial Threads
+                                                │
+                                     ┌──────────┴──────────┐
+                               /dev/armold_einsy      /dev/armold_ramps
+                                Einsy (J0-J3)          RAMPS (J4-J5)
 ```
 
 - **Mac** (macOS, darwin/zsh): Development, PlatformIO firmware builds, direct serial testing
-- **Pi 4** (Ubuntu 24.04, arm64): ROS 2 runtime, micro-ROS agent, topic routing
-- **Arduino Mega** (ATmega2560): Motor control firmware, STEP/DIR + TMC2208
+- **Pi 4** (Ubuntu 24.04, arm64): armold_controller daemon (asyncio + serial threads)
+- **Einsy RAMBo** (ATmega2560): Motor control firmware, TMC2130 SPI, StallGuard
+- **RAMPS 1.4** (ATmega2560): Secondary motor control (planned, not yet wired)
 
 ## Code Structure
-- `firmware/ramps/src/main.cpp` — Stepper motor test firmware (basic STEP/DIR, TMC2208)
-- `firmware/opencm/src/main.cpp` — Dynamixel servo test firmware (serial commands)
-- `scripts/example.py` — Original ROS 1 robot control (legacy, to be migrated)
-- `scripts/check_serial.py` — Serial port connectivity checker
-- `scripts/rotate_x_10.py` — Motor test: 10-degree rotation
-- `scripts/enable_hold.py` — Motor test: enable and hold for torque check
-- `pi/setup_ros2.sh` — ROS 2 install script for Pi
-- `pi/setup_ssh.sh` — SSH key setup script (run from Mac)
-- `pi/README.md` — Pi setup documentation
-- `pi/ssh_config_entry` — SSH config snippet for ~/.ssh/config
-- `platformio.ini` — PlatformIO build config (ramps + opencm environments)
+- `armold_controller/` — Motion control daemon (Pi)
+  - `__init__.py` — Package init, version
+  - `__main__.py` — Entry point, config, signal handling, health check
+  - `main.py` — Convenience entry point
+  - `command.py` — Command dataclass with sequence IDs and lifecycle
+  - `serial_board.py` — Per-board serial thread + command queue + ACK
+  - `motion_manager.py` — Move coordination, jog stacking, halt
+  - `ws_server.py` — asyncio WebSocket + JSON protocol
+  - `tests/test_core.py` — Unit tests (13 tests)
+- `firmware/einsy/src/main.cpp` — Einsy RAMBo firmware (TMC2130 SPI, 4-axis)
+- `firmware/ramps/src/main.cpp` — RAMPS firmware (basic STEP/DIR, 3-axis)
+- `web/index.html` — Control UI (native WebSocket, no roslib.js)
+- `scripts/deploy.sh` — Mac → Pi firmware deploy + flash
+- `scripts/deploy_controller.sh` — Mac → Pi controller deploy
+- `pi/armold.service` — systemd service file (single daemon)
+- `ros2_bridge/` — OLD ROS 2 bridge (archived, superseded)
 
 ## Design Patterns in Use
 - Single-character serial command interface for hardware testing (minimal, no parsing overhead)

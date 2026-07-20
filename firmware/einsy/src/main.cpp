@@ -72,7 +72,7 @@
 #define DEFAULT_CURRENT_MA  1200
 #define DEFAULT_MICROSTEPS  16
 #define DEFAULT_STEP_DELAY  80    // Cruise speed (microseconds between steps)
-#define MIN_STEP_DELAY      30    // Absolute max speed
+#define MIN_STEP_DELAY      20    // Absolute max speed
 #define MAX_STEP_DELAY      5000
 #define START_STEP_DELAY    600   // Initial speed for acceleration ramp
 #define ACCEL_STEPS         300   // Steps to accelerate from start to cruise speed
@@ -115,7 +115,7 @@ void configureDriver(TMC2130Stepper &drv, uint8_t index) {
     drv.pwm_autoscale(true);            // Auto-scale PWM
     drv.intpol(true);                   // Interpolate to 256 microsteps
     drv.TCOOLTHRS(0xFFFFF);             // Enable StallGuard at all speeds
-    drv.sgt(4);                         // StallGuard sensitivity (0-63, lower=more sensitive)
+    drv.sgt(63);                        // StallGuard sensitivity (0=most sensitive, 63=least)
     drv.diag1_stall(true);              // DIAG1 pin = stallGuard output
 
     // Verify communication
@@ -230,8 +230,35 @@ void moveCoordinated(int32_t target[NUM_JOINTS], uint16_t cruiseDelay) {
     // Bresenham interpolation with trapezoidal ramp on master axis
     int32_t error[NUM_JOINTS] = {0, 0, 0, 0};
 
+    // Calculate accel/decel bounds for StallGuard check window
+    uint16_t accelEnd = ACCEL_STEPS;
+    uint16_t decelStart = maxSteps > DECEL_STEPS ? maxSteps - DECEL_STEPS : 0;
+    if (maxSteps < (uint32_t)(ACCEL_STEPS + DECEL_STEPS)) {
+        accelEnd = maxSteps / 2;
+        decelStart = maxSteps - (maxSteps / 2);
+    }
+
     for (uint32_t step = 0; step < maxSteps; step++) {
         uint16_t d = rampDelay(step, maxSteps, cruiseDelay);
+
+        // --- Halt check: serial E-STOP only (StallGuard disabled for gearbox) ---
+        if (step > accelEnd && step < decelStart && (step % 16 == 0)) {
+            // Check for serial E-STOP (user-initiated)
+            if (Serial.available()) {
+                char c = Serial.peek();
+                if (c == 'E') {
+                    String ecmd = Serial.readStringUntil('\n');
+                    setMotorsEnabled(false);
+                    // Update position to where we actually stopped
+                    for (uint8_t j = 0; j < NUM_JOINTS; j++) {
+                        int32_t stepsCompleted = (int32_t)((uint64_t)absDelta[j] * step / maxSteps);
+                        position[j] += dir[j] ? stepsCompleted : -stepsCompleted;
+                    }
+                    Serial.println(F("OK E0"));
+                    return;
+                }
+            }
+        }
 
         for (uint8_t i = 0; i < NUM_JOINTS; i++) {
             error[i] += absDelta[i];

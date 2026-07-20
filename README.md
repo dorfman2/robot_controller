@@ -1,82 +1,206 @@
-If your robot uses steppers motors or smart servos (Dynamixel XL430-W250 or XL-320) then you can use cheap RAMPS 1.4 board or OpenCM_9.04 to control them from ROS.
+# Armold
 
-Links to electronics parts:<br/>
-https://reprap.org/wiki/RAMPS_1.4<br/>
-http://emanual.robotis.com/docs/en/parts/controller/opencm904/<br/>
-http://emanual.robotis.com/docs/en/dxl/x/xl430-w250/<br/>
-http://emanual.robotis.com/docs/en/dxl/x/xl320/<br/>
+A six-axis robot arm controller built on commodity 3D printer electronics. Controls stepper motors through cycloidal gearboxes with sub-degree precision, coordinated multi-joint motion, and collision detection.
 
-Links to ROS:<br/>
-http://wiki.ros.org/rostopic<br/>
-http://wiki.ros.org/ROS/Tutorials/UnderstandingTopics<br/>
-http://wiki.ros.org/rosserial_python<br/>
-http://wiki.ros.org/ROSberryPi/Installing%20ROS%20Kinetic%20on%20the%20Raspberry%20Pi<br/>
+## Hardware
 
-In my setup the RAMPS 1.4 and OpenCM 9.04 connected directly to Raspberry Pi USB ports, but you may connect them to desktop computer instead of Raspberry Pi.
+| Component | Role |
+|-----------|------|
+| Einsy RAMBo 1.1a | Primary controller — 4x TMC2130 (SPI), joints 0-3 |
+| RAMPS 1.4 + Mega 2560 | Secondary controller — joints 4-5 (planned) |
+| Raspberry Pi 4 | Motion controller daemon, WebSocket server |
+| TMC2130 drivers | SpreadCycle mode, 1200mA, 16 microsteps + interpolation |
+| NEMA 17 steppers | Through 20:1 micro cycloidal drives |
+| 24V DC / 10A | Shared power supply |
 
-Here you can find the images with preinstalled ROS on Raspberry Pi and Virtual PC:<br/>
-https://downloads.ubiquityrobotics.com/
+## Specifications
 
-As example, I will show you how to control Niryo robot (https://niryo.com/niryo-one/) with RAMPS 1.4 and OpenCM_9.04.
-The Niryo robot uses:
-- 3 stepper motors to move joint_0, joint_1 and joint_2
-- 2 servos (Dynamixel XL430-W250) to move joint_3 and joint_4
-- 2 servos (Dynamixel XL-320) to move joint_5 and gripper
+- **Degrees of Freedom**: 6 (3 active, 3 pending hardware)
+- **Payload Capacity**: 750g
+- **Maximum Reach**: 475mm
+- **Repeatability**: ±1mm
+- **Resolution**: ~230 steps/degree (83,028 steps per output revolution)
+- **Control Interface**: Web UI over WebSocket
 
-The arduino programs for RAMPS 1.4 and OpenCM_9.04:<br/>
-https://github.com/RoboLabHub/Niryo/tree/master/Controllers
+## Architecture
 
-Prerequisite commands:<br/>
-sudo apt-get update<br/>
-sudo apt-get upgrade<br/>
-sudo apt-get install ros-kinetic-rosserial*<br/>
+```
+Browser (Web UI) ←→ WebSocket ←→ armold_controller (Pi daemon)
+                                         │
+                                    Serial Threads
+                                         │
+                              ┌──────────┴──────────┐
+                        /dev/armold_einsy      /dev/armold_ramps
+                         Einsy (J0-J3)          RAMPS (J4-J5)
+                              │                       │
+                        TMC2130 SPI              TMC2208/2209
+                              │                       │
+                        Stepper Motors          Stepper Motors
+                              │                       │
+                        Cycloidal 20:1          Cycloidal 20:1
+```
 
-mkdir -p ~/catkin_ws/src<br/>
-cd ~/catkin_ws/src && catkin_init_workspace<br/>
-echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc<br/>
-source ~/.bashrc<br/>
-git clone --recursive https://github.com/RoboLabHub/robot_controller<br/>
+Single Python daemon on the Pi handles WebSocket connections, command queuing, and serial communication. No ROS in the motion path.
 
-cd ~/catkin_ws && catkin_make<br/>
+## Features
 
-To fix problem with USB ports on ubuntu you need to do these steps:<br/>
-sudo cp ~/catkin_ws/src/robot_controller/99-robot.rules /etc/udev/rules.d/ <br/>
-sudo udevadm control --reload-rules<br/>
-sudo udevadm trigger<br/>
+- **Coordinated multi-joint motion** — Bresenham interpolation, all joints start/stop together
+- **Trapezoidal speed ramping** — smooth acceleration/deceleration (300-step ramp, 30µs cruise)
+- **Web UI** — real-time jog controls, IK demo, speed profiles, motion queue display
+- **Unified halt system** — user E-STOP and StallGuard collision detection share one code path
+- **Collision detection** — TMC2130 StallGuard monitors motor load during moves, halts on impact
+- **Auto-reconnection** — survives USB disconnect/reconnect without manual intervention
+- **Position tracking** — firmware-authoritative, synced on every connect
+- **Multiple speed profiles** — Slow (200µs), Medium (80µs), Max (30µs)
+- **Deploy pipeline** — flash firmware from Mac via Pi over SSH
 
-After connecting and setup electronics run the following command to launch ROS serial:<br/>
-roslaunch robot_controller rosserial.launch
+## Quick Start
 
-The following ROS topic are used for controlling and monitoring the state of robot arm:<br/>
-/enable_motors<br/>
-/stepper_goal<br/>
-/stepper_state<br/>
-/servo_goal<br/>
-/servo_state<br/>
-/gripper_goal<br/>
+### Prerequisites
 
-Use the following ROS commands in separate terminal to control the robot arm motors:
+- Raspberry Pi 4 running Ubuntu Server 24.04
+- Einsy RAMBo 1.1a connected via USB
+- PlatformIO installed on Mac and Pi
+- Python 3.12 on Pi with `pyserial` and `websockets`
 
-To enable/disable motors (stepper motors and smart servo motors):<br/>
-rostopic pub /enable_motors -1 std_msgs/Int16 1<br/>
+### Flash Firmware
 
-To move stepper motors (for example, joint_0 to 105, joint_1 to 2000 and joint_3 to 350):<br/>
-rostopic pub /stepper_goal std_msgs/Int16MultiArray -1 -- '[[], 0]' '[105, 2000, 350]'<br/>
+```bash
+# From Mac — deploys and flashes to Einsy via Pi
+./scripts/deploy.sh einsy
+```
 
-To move smart servo motors (for example, joint_4 to 10, joint_5 to 500 and joint_6 to 400):<br/>
-rostopic pub /servo_goal std_msgs/Int16MultiArray -1 -- '[[], 0]' '[10, 500, 400]'<br/>
+### Start Controller
 
-To control gripper smart servo position (set position to 1023):<br/>
-rostopic pub /gripper_goal -1 std_msgs/Int16 1023<br/>
+```bash
+# On Pi
+sudo systemctl start armold
 
-You can also control your robot by python script to make continues movement:<br/>
-chmod +x ~/catkin_ws/src/robot_controller/scripts/example.py<br/>
-rosrun robot_controller example.py<br/>
+# Or manually
+python3 armold_controller/main.py
+```
 
-But if you want that your robot do more complex moves, then you should use the MoveIt package.<br/>
-Check this link for more info:<br/>
-https://github.com/RoboLabHub/Niryo/tree/master/niryo_one_driver<br/>
+### Open Web UI
 
-Related video:<br/>
-https://www.youtube.com/watch?v=c0k6x_Q5rNU<br/>
+Navigate to `http://armold.local:9090` (or open `web/index.html` locally and connect to `ws://armold.local:9090`).
 
+### Use
+
+1. Click **Enable Motors**
+2. Use jog buttons to move individual joints
+3. Click **IK Demo** for a coordinated motion sequence
+4. **E-STOP** immediately halts all motion
+
+## Project Structure
+
+```
+firmware/
+├── einsy/src/main.cpp      # Einsy RAMBo firmware (TMC2130 SPI, 4-axis)
+├── ramps/src/main.cpp      # RAMPS firmware (basic STEP/DIR, 3-axis)
+armold_controller/          # Motion control daemon (Pi)
+├── main.py                 # Entry point
+├── serial_board.py         # Per-board serial thread + command queue
+├── motion_manager.py       # Move coordination, jog stacking, halt
+├── websocket_server.py     # asyncio WebSocket + JSON protocol
+web/
+├── index.html              # Control UI (connects via WebSocket)
+scripts/
+├── deploy.sh               # Mac → Pi firmware deploy + flash
+├── ik_demo.py              # Standalone IK demo (direct serial)
+pi/
+├── armold.service          # systemd service file
+├── install_services.sh     # Service installer
+platformio.ini              # Multi-environment build config
+```
+
+## Firmware Protocol
+
+Serial at 115200 baud. Newline-terminated commands:
+
+| Command | Description |
+|---------|-------------|
+| `E1` / `E0` | Enable / disable motors |
+| `G <p0> <p1> <p2> <p3> [delay]` | Coordinated move to absolute positions |
+| `M<j> <steps> <dir> <delay>` | Move single joint |
+| `S` | Query state (returns positions) |
+| `R` / `R<j>` | Reset position counters (all or single joint) |
+| `C <mA>` | Set motor current (Einsy only) |
+| `U <microsteps>` | Set microstepping (Einsy only) |
+| `T` | Toggle StealthChop/SpreadCycle (Einsy only) |
+| `I` | Driver diagnostics (Einsy only) |
+
+## WebSocket Protocol
+
+JSON messages over native WebSocket (port 9090):
+
+```json
+// Client → Server
+{"cmd": "enable"}
+{"cmd": "jog", "joint": 0, "delta": 20757}
+{"cmd": "move", "target": [20757, 0, 0, 0, 0, 0]}
+{"cmd": "estop"}
+{"cmd": "set_speed", "delay_us": 30}
+
+// Server → Client
+{"type": "state", "enabled": true, "position": [20757, 0, 0, 0, 0, 0], "speed": 30}
+{"type": "halt", "source": "collision", "joint": 1, "message": "Collision on Joint 1"}
+{"type": "ack", "id": 5, "status": "ok", "position": [20757, 0, 0, 0, 0, 0]}
+```
+
+## TMC2130 Settings (Validated)
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Current | 1200mA RMS | ~80% of hardware max, thermal headroom |
+| Microsteps | 16 + interpolation to 256 | Smooth without MCU step-rate overhead |
+| Mode | SpreadCycle | Dynamic torque for rapid direction changes |
+| Cruise delay | 30µs | Near max speed with 300-step ramp |
+| Accel/Decel | 300 steps | Passes through resonance zone quickly |
+| Start delay | 600µs | Conservative start prevents missed steps |
+| StallGuard sgt | 4 | Collision sensitivity (tune per joint) |
+
+## Joint Limits
+
+| Joint | Range | Role |
+|-------|-------|------|
+| J0 (Base) | ±720° | Rotation |
+| J1 (Shoulder) | ±135° | Lift |
+| J2 (Elbow) | ±135° | Reach |
+| J3 (Wrist Pitch) | ±100° | Not yet wired |
+| J4 (Wrist Roll) | ±100° | Pending RAMPS |
+| J5 (Wrist Yaw) | ±100° | Pending RAMPS |
+
+## Development
+
+### Flash firmware from Mac (direct USB)
+
+```bash
+export PATH="/Users/$USER/.platformio/penv/bin:$PATH"
+pio run -e einsy -t upload
+```
+
+### Flash via Pi (remote)
+
+```bash
+./scripts/deploy.sh einsy
+```
+
+### SSH to Pi
+
+```bash
+ssh pi@armold.local
+```
+
+### View logs
+
+```bash
+ssh pi@armold.local "sudo journalctl -u armold -f"
+```
+
+## License
+
+See [LICENSE](LICENSE) file.
+
+## Author
+
+Jeffrey Dorfman ([@dorfman2](https://github.com/dorfman2))

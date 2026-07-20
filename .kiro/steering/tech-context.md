@@ -47,11 +47,14 @@ inclusion: always
 - **Model**: Raspberry Pi 4
 - **OS**: Ubuntu Server 24.04 LTS (Noble) arm64
 - **Kernel**: 6.8.0-1060-raspi
-- **ROS 2**: Jazzy Jalisco
-- **IP**: 192.168.1.138 (ethernet)
+- **ROS 2**: Jazzy Jalisco (installed, but being removed from motion path)
+- **IP**: 192.168.1.136 (DHCP reservation)
+- **mDNS**: armold.local
 - **Hostname**: armold
 - **User**: pi (SSH key auth, sudo NOPASSWD, dialout group)
-- **SSH**: `ssh pi@192.168.1.138` (ed25519 key)
+- **SSH**: `ssh pi@armold.local` (ed25519 key, passphrase-protected)
+- **PlatformIO**: installed at /home/pi/.local/bin (v6.1.19)
+- **Serial devices**: /dev/armold_einsy (udev symlink from ttyACM0)
 
 ## Component Relationships and Dependencies
 - `scripts/example.py` → legacy ROS 1 control script (to be migrated)
