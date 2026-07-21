@@ -27,9 +27,22 @@ The custom Python daemon (`armold_controller`) communicating with the Einsy RAMB
 | Einsy RAMBo 1.1a | Motor controller (4x TMC2130 SPI) | Working, but serial interface fragile |
 | RAMPS 1.4 + Mega 2560 | Secondary controller (joints 4-5) | Not yet wired |
 | Raspberry Pi 4 (4GB) | Daemon host, web server | Working |
-| NEMA 17 steppers | 5x motors through 20:1 cycloidal drives | Working |
+| NEMA 17 steppers × 5 | Motors through 20:1 cycloidal drives | Working |
+| StepperOnline TE Series drivers × 6 | Digital stepper drivers (1.0-4.2A, 24-50VDC) | Owned, not currently in use |
 | 24V / 10A PSU | Power | Working |
 | TMC2130 (Einsy onboard) | Stepper drivers (SPI controlled) | Working |
+| Creality 1284P board | Spare (identified, not suitable as primary) | Spare |
+
+### StepperOnline TE Series Drivers
+
+These are standalone digital stepper drivers with STEP/DIR/ENA interface:
+- Input: 24-50VDC
+- Output: 1.0-4.2A (adjustable via DIP switches or software)
+- Interface: STEP/DIR/ENA (optically isolated inputs)
+- Compatible with: NEMA 17 and NEMA 23 motors
+- Quantity owned: 6
+
+**Significance:** These drivers connect directly to a Mesa FPGA card or any STEP/DIR controller without needing on-board driver ICs. They eliminate the TMC2130/2209 dependency entirely and provide more current (4.2A peak vs 1.48A on Einsy). This makes Option B (Mesa + LinuxCNC) significantly cheaper since no new drivers are needed.
 
 ## Current Software
 
@@ -89,16 +102,23 @@ Pi (Web UI + IK) → USB Serial → BTT Octopus MAX EZ (grblHAL) → STEP/DIR �
 
 ### Option B: Mesa 7i96S + LinuxCNC
 
-**Concept:** Industrial-grade FPGA step generator with real-time Linux motion control, including built-in 6-axis IK via `genserkins`.
+**Concept:** Industrial-grade FPGA step generator with real-time Linux motion control, including built-in 6-axis IK via `genserkins`. Uses your existing StepperOnline TE drivers.
 
 ```
-Pi (LinuxCNC + PREEMPT_RT) → Ethernet → Mesa 7i96S (FPGA) → STEP/DIR → Drivers → Motors
+Pi (LinuxCNC + PREEMPT_RT) → Ethernet → Mesa 7i96S (FPGA) → STEP/DIR → StepperOnline TE drivers → Motors
 ```
 
 **Hardware:**
 - Mesa 7i96S (~$240) — FPGA Ethernet controller, 5 axes step/dir
 - For 7 axes: Mesa 7i96S + Mesa 7i74 expansion (~$400 total)
-- Keep existing TMC2130 drivers (or add external drivers)
+- **StepperOnline TE Series drivers × 6 (ALREADY OWNED)** — direct STEP/DIR connection
+- Keep existing NEMA 17 motors
+
+**Signal path (per axis):**
+```
+Mesa 7i96S pin header → 2-wire (STEP + DIR) → TE driver opto-isolated input → Motor
+```
+No SPI. No UART. No serial protocol. Just clean digital pulses from FPGA to driver.
 
 **Software:**
 - LinuxCNC (25+ years of industrial use)
@@ -118,13 +138,32 @@ Pi (LinuxCNC + PREEMPT_RT) → Ethernet → Mesa 7i96S (FPGA) → STEP/DIR → D
 - Handles 6+ axes natively
 
 **Cons:**
-- Expensive controller (~$240-400)
+- Controller cost (~$240 for 5 axes, ~$400 for 7)
 - Requires PREEMPT_RT kernel on Pi (custom kernel build)
 - Steeper learning curve (HAL configuration, INI files)
 - No native web UI (need custom frontend or use Probe Basic)
 - Overkill for 750g payload arm
 
-**Cost:** ~$240-400
+**Cost:** ~$240 (5 axes, uses existing TE drivers) or ~$350-440 (7 axes + servo with expansion)
+
+**Mesa Card Options for 7 Stepper + 1 Servo:**
+
+| Configuration | Axes | Servo? | Cost | Notes |
+|---------------|------|--------|------|-------|
+| 7i96S alone | 5 STEP/DIR | No | ~$240 | Not enough for 7 axes |
+| 7i95 alone | 6 STEP/DIR + encoder | No | ~$350 | Close, but no servo |
+| **7i92 + 7i76 + 7i78** | **9 STEP/DIR + 2 analog servo** | **Yes** | **~$350-440** | Best fit: 7 steppers + servo + spare axes |
+| 7i97 alone | 6 analog servo | All servo | ~$390 | All servo, no step/dir (overkill) |
+
+**Recommended Mesa combo: 7i92 (~$90) + 7i76 (~$170) + 7i78 (~$90) = ~$350**
+- 9 total STEP/DIR (need 7)
+- ±10V analog output for servo gripper
+- Encoder inputs for future closed-loop
+- One Ethernet cable to Pi
+- Well-documented LinuxCNC configuration
+
+**However:** At $350-440 for the Mesa path vs ~$110 for BTT Octopus MAX EZ + EZ2209 drivers (which also handles 7+ axes with native UART and servo PWM), the cost difference is significant. Mesa buys industrial reliability and FPGA precision; BTT buys simplicity and lower cost with proven CNC-grade firmware.
+
 **Effort:** 3-5 days to configure + kernel setup
 **Reliability:** Very high (FPGA timing, industrial-proven)
 
@@ -236,7 +275,7 @@ Mac (RViz visualization, MoveIt planning) ← WiFi/DDS → Pi (ROS 2 nodes)
 | Criteria | Option A (grblHAL) | Option B (Mesa/LinuxCNC) | Option C (Current) |
 |----------|--------------------|--------------------------|--------------------|
 | **Reliability** | High | Very High | Medium |
-| **Cost** | ~$110 | ~$240-400 | $0 |
+| **Cost** | ~$110 | ~$240 (own drivers) | $0 |
 | **Setup effort** | 1-2 days | 3-5 days | 0 (already running) |
 | **IK support** | Pi-side library | Built-in (genserkins) | Pi-side library |
 | **Max axes** | 6-8 | 6+ (expandable) | 4 (Einsy) + 2 (RAMPS) |
@@ -250,6 +289,16 @@ Mac (RViz visualization, MoveIt planning) ← WiFi/DDS → Pi (ROS 2 nodes)
 | **Trajectory planning** | Built-in S-curve + lookahead | Full jerk-limited + lookahead | Custom sinusoidal ramp |
 | **Community** | Large CNC community | Large CNC/industrial community | Just us |
 | **Future-proofing** | Good (standard G-code) | Excellent (industrial standard) | Limited |
+
+## Cost Summary
+
+| Option | Hardware Needed | Cost | What You Keep |
+|--------|----------------|------|---------------|
+| **A: BTT + grblHAL** | Octopus MAX EZ + 7× EZ2209 | **~$110** | Pi, motors, PSU, web UI |
+| **B: Mesa + LinuxCNC** | 7i92 + 7i76 + 7i78 | **~$350** | Pi, motors, PSU, TE drivers |
+| **C: Current (Einsy)** | Nothing | **$0** | Everything |
+
+Note: Option A at $110 provides 7+ axes, native UART drivers (no extra wiring), USB-C (not UART bridge), and proven grblHAL firmware with Trinamic StallGuard plugin. Option B at $350 adds FPGA precision, Ethernet (no USB at all), built-in IK, and analog servo output — but at 3× the cost. Both eliminate the serial reliability issues permanently.
 
 ---
 
@@ -269,10 +318,13 @@ Mac (RViz visualization, MoveIt planning) ← WiFi/DDS → Pi (ROS 2 nodes)
 - **This solves the reliability problem permanently for ~$110**
 
 ### Future (if you want industrial precision): Option B (Mesa + LinuxCNC)
-- For closed-loop operation with encoders
-- For sub-microsecond step timing
-- For built-in IK via genserkins
-- When the arm moves from prototype to production tool
+- **Only need to buy the Mesa card** (~$240) — already own 6x TE drivers
+- Wire: Mesa STEP/DIR outputs → TE driver inputs → existing motors
+- Pi runs LinuxCNC with PREEMPT_RT kernel
+- Built-in IK via genserkins (just define DH parameters)
+- Ethernet communication eliminates ALL serial issues
+- Full closed-loop support when encoders are added
+- **Cleanest signal path possible: FPGA → wire → driver → motor**
 
 ---
 
