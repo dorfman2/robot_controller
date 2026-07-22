@@ -5,47 +5,40 @@ inclusion: always
 # Active Context - Current Task State
 
 ## Current Focus
-Stable bridge daemon deployed and running on Pi. Firmware updated with sinusoidal S-curve ramp (Phase A) and segment protocol (Phase B). Trajectory planning now on Pi with junction velocity optimization. Validation testing phase.
+BTT grblHAL + IK spec fully reviewed and finalized. All inconsistencies fixed, simulator integration phase added. Ready for hardware procurement. Current Einsy system still running on Pi for day-to-day use.
 
 ## Recent Changes
-- Created armold_controller/ package (single Python daemon replaces 3 ROS services)
-- Implemented SerialBoard, MotionManager, WebSocket server, command queue
-- Firmware updated: sinusoidal cosine lookup table replaces linear ramp
-- Firmware updated: segment command `X` for Pi-planned moves with interpolation
-- Pi-side TrajectoryPlanner: S-curve profiles, junction velocity optimization, lookahead
-- StallGuard disabled (sgt=63, false triggers with cycloidal gearbox)
-- Serial E-STOP check in stepping loop (works mid-move)
-- Set Home fix: daemon resets `board._position` immediately (not just pending_target)
-- Serial connect fix: fallback to direct `S` sync when READY banner not seen
-- Einsy flashed with halt-enabled firmware via deploy pipeline
-- Old services disabled, new `armold.service` running on Pi
-- `websockets` package installed on Pi
-- README.md written with full project documentation
-- All unit tests passing (13/13)
-- Calibration: 83,028 steps/rev (~230.6 steps/degree)
-- Max speed increased to 20µs step delay
+- Reviewed and finalized `.kiro/specs/btt-grblhal-ik/` (requirements.md, design.md, tasks.md)
+- Fixed joint limits to match FK simulator DIMS (±180/90/150/120/90/180)
+- Fixed GRBL soft limits — clarified full-range vs half-range ($130=360 for ±180°)
+- Corrected URDF to proper Z-up convention (Z-axis base yaw, Y-axis pitch joints, Z offsets for vertical links)
+- Fixed ikpy code: active_links_mask documented (8 elements for 6 joints), seed uses home pose, limits corrected
+- Fixed GrblBoard: removed `reset_input_buffer`, unlocked estop, added startup drain
+- Corrected grblHAL WebBuilder URL to `https://svn.io-engineering.com:8443/`
+- Added udev rule example for `/dev/armold_motion` persistent naming
+- Added home pose `[0, -30, 70, 50, 0, 0]` as machine zero reference (from FK simulator)
+- Added Phase 8: Simulator Integration (5 sub-phases: FK validation, calibration, sequence→G-code, live bridge, production deploy)
+- Cloned and analyzed `Armold_FK_v1` FK simulator (LeeWhite187/Armold_FK_v1)
 
 ## Upcoming Changes
-- Run 1-hour IK demo stress test
-- Test E-STOP latency (<100ms)
-- Test USB unplug/replug recovery
-- Tune StallGuard sgt per joint after mechanical testing (currently disabled)
-- Phase C (full binary protocol + hardware timer) — future, needs MCU upgrade
-- Sensorless homing (future spec)
+- Order BTT Octopus MAX EZ + 7× EZ5160 drivers (~$145-165 total)
+- Measure physical link lengths → compute SCALE factor for URDF
+- Validate FK between ikpy URDF and simulator at home pose
+- Phase 1-8 of BTT spec (blocked on hardware arrival)
+- Current Einsy system stays running in parallel (Option C)
 
 ## Active Decisions and Considerations
 - Project name: "Armold"
 - Software name: "Sweep Sync"
-- Architecture: single Python daemon (`armold_controller`) with Pi-side trajectory planning
-- Motion profile: sinusoidal S-curve (cosine lookup table on MCU, full S-curve from Pi segments)
-- Primary board: Einsy RAMBo 1.1a (4 joints, TMC2130 SPI)
-- Secondary board: RAMPS 1.4 (joints 4-5, not yet wired)
-- ROS 2 Jazzy stays installed for future MoveIt integration, but removed from motion path
-- Calibration: 83,028 steps = 360° output (~230.6 steps/degree)
-- TMC2130: 1200mA, 16µstep+interp, SpreadCycle, 20µs cruise, sinusoidal 300-step ramp
-- StallGuard: disabled (sgt=63) — cycloidal gearbox causes false triggers
-- Serial: 250Kbaud max (ATmega32U2 bridge, NOT native CDC)
-- Pi: armold.local (192.168.1.136), user pi, armold.service
-- Daemon path on Pi: /home/pi/armold_firmware/armold_controller
-- WebSocket: port 9090, JSON protocol
-- Deploy: `./scripts/deploy.sh einsy` (firmware) + rsync armold_controller/ (daemon)
+- **Next-gen architecture**: BTT Octopus MAX EZ + grblHAL + ikpy (spec complete)
+- **Current architecture**: Einsy + custom firmware + armold_controller (still running)
+- BTT EZ5160 chosen over EZ2209 (4.7A vs 2.0A, SPI, StallGuard4)
+- grblHAL chosen over custom firmware (eliminates serial race conditions)
+- ikpy chosen over Pinocchio (simpler, pure Python, adequate speed)
+- FK simulator (Armold_FK_v1) will become planning UI + digital twin
+- Simulator DIMS define arm geometry (proportional units, need SCALE from physical measurement)
+- Home pose: `[0°, -30°, 70°, 50°, 0°, 0°]` (simulator default = machine zero)
+- URDF uses Z-up convention (remapped from simulator Three.js Y-up)
+- grblHAL: 6 axes XYZABC mapped to J0-J5, standard G-code protocol
+- Pi: armold.local (192.168.1.136), WebSocket 9090, Python 3.12
+- Deploy (future): `rsync -az armold_controller/ pi@armold.local:~/armold_firmware/armold_controller/`

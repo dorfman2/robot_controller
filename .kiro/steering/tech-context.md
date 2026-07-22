@@ -6,10 +6,10 @@ inclusion: always
 
 ## Core Requirements
 - Python 3.12 (Pi), Python 3.10+ (Mac development)
-- ROS 2 Jazzy (on Raspberry Pi 4, Ubuntu 24.04 Noble)
-- USB serial access to RAMPS 1.4 and OpenCM 9.04 boards
+- ROS 2 Jazzy (on Raspberry Pi 4, Ubuntu 24.04 Noble) — installed but removed from motion path
+- USB serial access to Einsy RAMBo (current) and BTT Octopus MAX EZ (next-gen)
 - PlatformIO for firmware development (on Mac)
-- 24V DC, 10A power supply
+- 24V DC, 10A power supply (upgradeable to 48V with EZ5160 drivers)
 - Wi-Fi and Bluetooth connectivity for control interface
 
 ## Core Dependencies
@@ -27,6 +27,25 @@ inclusion: always
 
 ### Legacy (from original robot_controller, to be migrated)
 - `rospy`, `roslib`, `std_msgs`, `rosserial_python`, `catkin`
+
+### Next-Gen Stack (BTT grblHAL + IK — spec complete, awaiting hardware)
+- `ikpy` — Inverse kinematics solver (URDF → joint angles)
+- `numpy` — Numerical computation for IK
+- `pyserial` — GRBL serial communication (standard protocol)
+- `websockets` — WebSocket server (existing, stays)
+- **grblHAL** — 6-axis motion controller firmware (community-maintained, proven)
+- **BTT Octopus MAX EZ V1.0** — STM32H723 board, 10 EZ driver slots, native USB
+- **BTT EZ5160 RGB × 7** — TMC5160-TA drivers, 4.7A RMS, 8-56V, SPI, 50mΩ sense
+
+### FK Simulator (Armold_FK_v1 — third-party reference)
+- **Repository**: https://github.com/LeeWhite187/Armold_FK_v1
+- **Stack**: Vite + Three.js (static client-side build, no backend)
+- **Source**: `src/robot.js` (6-DOF arm FK), `src/sequencer.js` (step interpolation), `src/ui.js` (controls)
+- **DIMS** (proportional units): baseHeight=0.35, shoulderHeight=0.55, upperArm=1.50, foreArm=1.25, wristLen=0.35, toolLen=0.45
+- **Joint axes**: J0 Y-yaw, J1 X-pitch, J2 X-pitch, J3 X-pitch, J4 Z-yaw, J5 Y-roll
+- **Home pose**: [0°, -30°, 70°, 50°, 0°, 0°]
+- **Sequence JSON format**: `{"version":1, "steps":[{"name":"...", "angles":[deg×6], "gripper":0-1, "duration":s, "dwell":s}]}`
+- **Integration planned**: digital twin / planning UI for physical arm (Phase 8 of BTT spec)
 
 ## Technologies, Libraries, and Protocols
 - **ROS 2 Jazzy** — Current LTS middleware (Ubuntu 24.04, supported through 2029)
@@ -81,16 +100,33 @@ inclusion: always
 
 ## Key Technical Decisions
 - **ROS 2 Jazzy over Humble** — Pi image is Ubuntu 24.04 (Noble), Jazzy is the matching LTS
-- **Einsy RAMBo 1.1a as primary controller** — replaces RAMPS 1.4, 4x TMC2130 via SPI, sensorless homing
-- Mixed motor architecture: steppers (high torque, open-loop) for base joints, smart servos (closed-loop feedback) for wrist joints
-- USB serial at 115200 baud for both controllers
+- **Einsy RAMBo 1.1a as current controller** — 4x TMC2130 via SPI, running on Pi now
+- **BTT Octopus MAX EZ as next-gen controller** — STM32H723, 10 EZ slots, grblHAL, ordered pending
+- **BTT EZ5160 over EZ2209** — 4.7A vs 2.0A, 56V support, SPI mode, StallGuard4 more reliable
+- **grblHAL over custom firmware** — eliminates serial race conditions, proven G-code protocol
+- **ikpy over Pinocchio** — simpler setup, pure Python, 7-50ms solve, URDF support
+- **Option C now, Option A when hardware arrives** — zero spend while waiting
+- Mixed motor architecture: steppers for base joints (high torque), smart servos for wrist (closed-loop)
+- USB serial at 115200 baud for Einsy; BTT Octopus MAX EZ uses native USB (virtual baud)
 - PlatformIO for firmware development — unified build/upload/monitor across both boards
 - PlatformIO Core installed at `/Users/jdorfman/.platformio/penv/bin` (v6.1.19)
-- Arduino framework for both MCUs (AVR for RAMPS/Einsy, STM32 for OpenCM)
 - Einsy serial port (Mac): `/dev/cu.usbmodem1101`
-- RAMPS serial port (Mac): `/dev/cu.usbserial-AL03LVPB`
-- Pi serial port: `/dev/ttyUSB0` (when Mega/Einsy connected to Pi)
-- rosbridge WebSocket for Mac → Pi ROS 2 topic access
+- Pi serial device (current): `/dev/armold_einsy` (udev symlink)
+- Pi serial device (future BTT): `/dev/armold_motion` (udev symlink, VID 1d50 PID 614e)
+- GRBL axis mapping: X=J0 (Base), Y=J1 (Shoulder), Z=J2 (Elbow), A=J3 (Wrist Pitch), B=J4 (Wrist Roll), C=J5 (Wrist Yaw)
+- grblHAL steps/degree: 230.6 ($100-$105), soft limits full-range ($130=360, $131=180, $132=300, $133=240, $134=180, $135=360)
+- URDF convention: Z-up, Z-axis base yaw, Y-axis pitch joints, link offsets along Z
+
+## Armold_FK_v1 Simulator Joint Definitions (from robot.js)
+
+| Joint | Name | Axis (Three.js Y-up) | URDF Axis (Z-up) | Limits | Home |
+|-------|------|----------------------|------------------|--------|------|
+| J0 | Base | Y-yaw | Z-yaw (`0 0 1`) | ±180° | 0° |
+| J1 | Shoulder | X-pitch | Y-pitch (`0 1 0`) | ±90° | -30° |
+| J2 | Elbow | X-pitch | Y-pitch (`0 1 0`) | ±150° | 70° |
+| J3 | Wrist Pitch | X-pitch | Y-pitch (`0 1 0`) | ±120° | 50° |
+| J4 | Wrist Yaw | Z-yaw | Z-yaw (`0 0 1`) | ±90° | 0° |
+| J5 | Wrist Roll | Y-roll | X-roll (`1 0 0`) | ±180° | 0° |
 
 ## Einsy RAMBo TMC2130 Tuned Settings (Validated)
 

@@ -42,8 +42,18 @@ inclusion: always
 - Daemon WorkingDirectory must match actual path on Pi (`/home/pi/armold_firmware` not `/home/pi/Armold`)
 - StallGuard position tracking on abort: calculate from `(absDelta[j] * step / maxSteps)` to report where motor actually stopped
 - set_home must reset both `_pending_target` AND `_position` on the board object (not just firmware `R` command)
+- **grblHAL soft limits ($130-$135) use full range** not half-range (±180° = $130=360, not 180)
+- **grblHAL real-time commands** (`!`, `~`, `?`) are single bytes that bypass the serial lock and interrupt mid-move
+- **Never call `reset_input_buffer()` before G-code sends** — drops queued `ok` responses from prior commands
+- **grblHAL WebBuilder URL**: `https://svn.io-engineering.com:8443/` (NOT build.grbl.org)
+- **BTT Octopus MAX EZ uses native USB (STM32 CDC)** — baud rate is virtual; 115200 is fine
+- **URDF for ikpy**: must include base_link (fixed) and end_effector link; `active_links_mask` has 8 elements for 6 active joints
+- **Three.js Y-up → URDF Z-up mapping**: Y→Z for vertical axes, X stays X for pitch, adjust wrist roll accordingly
+- **Armold_FK_v1 is a third-party reference** (LeeWhite187) — NOT built by Jeffrey; used for geometry extraction and as a digital twin UI
 
 ## System Architecture
+
+### Current (Einsy — running)
 ```
 Browser (Web UI) ←── WebSocket (9090) ──→ armold_controller (Pi daemon)
                                                 │
@@ -52,6 +62,25 @@ Browser (Web UI) ←── WebSocket (9090) ──→ armold_controller (Pi daem
                                      ┌──────────┴──────────┐
                                /dev/armold_einsy      /dev/armold_ramps
                                 Einsy (J0-J3)          RAMPS (J4-J5)
+```
+
+### Next-Gen (BTT grblHAL — spec complete, awaiting hardware)
+```
+Browser (Web UI + FK Simulator)
+    ↕ WebSocket (9090)
+armold_controller (Pi daemon)
+    ├── ikpy IK solver (Cartesian → joint angles)
+    ├── GrblBoard (GRBL serial protocol, G-code sender)
+    ├── Status poller (2Hz, `?` → broadcast)
+    └── Sequence → G-code converter
+            ↕ USB-C native (/dev/armold_motion)
+BTT Octopus MAX EZ (grblHAL, STM32H723)
+    ├── 6-axis XYZABC coordinated motion
+    ├── TMC5160 SPI (via EZ5160 drivers)
+    ├── S-curve + lookahead (built-in)
+    └── Hardware E-STOP pin
+            ↕ STEP/DIR
+EZ5160 × 7 → NEMA 17 × 6 → 20:1 Cycloidal → Joints
 ```
 
 - **Mac** (macOS, darwin/zsh): Development, PlatformIO firmware builds, direct serial testing
@@ -76,6 +105,8 @@ Browser (Web UI) ←── WebSocket (9090) ──→ armold_controller (Pi daem
 - `scripts/deploy_controller.sh` — Mac → Pi controller deploy
 - `pi/armold.service` — systemd service file (single daemon)
 - `ros2_bridge/` — OLD ROS 2 bridge (archived, superseded)
+- `.kiro/specs/btt-grblhal-ik/` — BTT + grblHAL + IK spec (requirements, design, tasks)
+- `docs/motion-controller-analysis.md` — Hardware options comparison (A/B/C/E + Mesa)
 
 ## Design Patterns in Use
 - Single-character serial command interface for hardware testing (minimal, no parsing overhead)
