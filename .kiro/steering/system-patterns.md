@@ -32,6 +32,15 @@ inclusion: always
 - Stepper motor voltage: chopper driver limits current regardless of voltage; higher voltage = more torque at high speed (back-EMF headroom)
 - 24V sufficient for NEMA 17 through 20:1 gearbox; 36-48V only needed for much higher speeds
 - Calibration re-measured: 83,028 steps = 360° actual output (not 20,757 — original measurement was off by 4x)
+- **Gearbox ratio is ~25.95:1** (not 20:1) — measured empirically: 83,028 / (16 × 200) = 25.946
+- **All S42C boards set to 16 microsteps** — uniform calibration, 230.6 steps/degree across all joints
+- **S42C at 32 microsteps gives 75° when 90° expected** — because firmware assumed 20:1 gearbox; fixed by using empirical calibration
+- **S42C closed-loop confirmed working**: position correction transparent, motor returns to exact start position
+- **Soft limits prevent over-travel**: firmware clamps step count before execution, per-joint configurable
+- **Deploy key for Pi**: `~/.ssh/armold_deploy` (ed25519, no passphrase) — use with `ssh -i ~/.ssh/armold_deploy pi@armold.local`
+- **avrdude path on Pi**: `/home/pi/.platformio/packages/tool-avrdude/bin/avrdude` with conf at `/home/pi/.platformio/packages/tool-avrdude/avrdude.conf`
+- **RAMPS serial on Pi**: `/dev/armold_ramps` → ttyUSB0 (udev symlink)
+- **Flash command**: `rsync hex to /tmp/ then avrdude -p atmega2560 -c wiring -P /dev/armold_ramps -b 115200 -D -U flash:w:/tmp/ramps_s42c.hex:i`
 - Int16MultiArray overflows at ±32767 steps — switched to Int32MultiArray for position values
 - ROS 2 bridge fundamental issues: blocking callback thread, DDS type cache on restart, rosbridge stale connections
 - New architecture: single Python daemon (asyncio + serial threads) replaces 3 ROS services
@@ -100,13 +109,15 @@ EZ5160 × 7 → NEMA 17 × 6 → 20:1 Cycloidal → Joints
   - `tests/test_core.py` — Unit tests (13 tests)
 - `firmware/einsy/src/main.cpp` — Einsy RAMBo firmware (TMC2130 SPI, 4-axis)
 - `firmware/ramps/src/main.cpp` — RAMPS firmware (basic STEP/DIR, 3-axis)
+- `firmware/ramps_s42c/src/main.cpp` — RAMPS 1.4 firmware for S42C (STEP/DIR, soft limits, sinusoidal ramp)
 - `web/index.html` — Control UI (native WebSocket, no roslib.js)
 - `scripts/deploy.sh` — Mac → Pi firmware deploy + flash
 - `scripts/deploy_controller.sh` — Mac → Pi controller deploy
 - `pi/armold.service` — systemd service file (single daemon)
 - `ros2_bridge/` — OLD ROS 2 bridge (archived, superseded)
 - `.kiro/specs/btt-grblhal-ik/` — BTT + grblHAL + IK spec (requirements, design, tasks)
-- `docs/motion-controller-analysis.md` — Hardware options comparison (A/B/C/E + Mesa)
+- `.kiro/specs/ramps-s42c-closed-loop/` — RAMPS + S42C closed-loop spec (requirements, design, tasks)
+- `docs/motion-controller-analysis.md` — Hardware options comparison (A/B/C/D/E + Mesa)
 
 ## Design Patterns in Use
 - Single-character serial command interface for hardware testing (minimal, no parsing overhead)

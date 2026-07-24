@@ -69,15 +69,35 @@
 
 // --- S42C Configuration Constants ---
 // S42C configured via OLED: 16 microsteps, closed-loop correction internal
+// Calibration: 83,028 steps = 360° output (measured empirically)
+// Actual gearbox ratio: 83,028 / (16 × 200) = 25.946:1
 #define MICROSTEPS          16
-#define FULL_STEPS_PER_REV  200
-#define GEARBOX_RATIO       20
-#define STEPS_PER_OUTPUT_REV (MICROSTEPS * FULL_STEPS_PER_REV * (long)GEARBOX_RATIO)
-// 16 * 200 * 20 = 64,000 steps per output revolution
-// 64,000 / 360 = 177.78 steps per degree
-// Use fixed-point: multiply by 10 for precision → 1778 steps per 10 degrees
+#define STEPS_PER_OUTPUT_REV 83028L
+// 83,028 / 360 = 230.6 steps/degree (same as Einsy calibration)
 
-// --- Motion Configuration ---
+// --- Soft Limits (per-joint, in steps) ---
+// Prevents commanding past physical joint range.
+// All joints at 16 microsteps: 83,028 steps/rev → 230.6 steps/degree
+#define STEPS_PER_DEGREE    231  // 83028 / 360 ≈ 230.6, rounded
+
+// Joint limits in degrees (from FK simulator):
+//   J0 (Base):        ±360° (full rotation for testing)
+//   J1 (Shoulder):    ±90°
+//   J2 (Elbow):       ±150°
+//   J3 (Wrist Pitch): ±120°
+const int32_t softLimitMin[NUM_JOINTS] = {
+    -360L * STEPS_PER_DEGREE,  // J0: -83,160
+     -90L * STEPS_PER_DEGREE,  // J1: -20,790
+    -150L * STEPS_PER_DEGREE,  // J2: -34,650
+    -120L * STEPS_PER_DEGREE   // J3: -27,720
+};
+const int32_t softLimitMax[NUM_JOINTS] = {
+     360L * STEPS_PER_DEGREE,  // J0: +83,160
+      90L * STEPS_PER_DEGREE,  // J1: +20,790
+     150L * STEPS_PER_DEGREE,  // J2: +34,650
+     120L * STEPS_PER_DEGREE   // J3: +27,720
+};
+bool softLimitsEnabled = true;
 #define DEFAULT_STEP_DELAY  80    // Cruise speed (microseconds between steps)
 #define MIN_STEP_DELAY      20    // Absolute max speed
 #define MAX_STEP_DELAY      5000
@@ -162,6 +182,34 @@ uint16_t rampDelay(uint32_t step, uint32_t totalSteps, uint16_t cruiseDelay) {
 
 
 /**
+ * Check if a move would exceed soft limits.
+ * Returns the clamped step count (may be less than requested).
+ * Returns 0 if the move is entirely outside limits.
+ */
+uint32_t clampSteps(uint8_t joint, uint32_t steps, bool forward) {
+    if (!softLimitsEnabled || joint >= NUM_JOINTS) return steps;
+
+    int32_t targetPos;
+    if (forward) {
+        targetPos = position[joint] + (int32_t)steps;
+        if (targetPos > softLimitMax[joint]) {
+            int32_t allowed = softLimitMax[joint] - position[joint];
+            if (allowed <= 0) return 0;
+            return (uint32_t)allowed;
+        }
+    } else {
+        targetPos = position[joint] - (int32_t)steps;
+        if (targetPos < softLimitMin[joint]) {
+            int32_t allowed = position[joint] - softLimitMin[joint];
+            if (allowed <= 0) return 0;
+            return (uint32_t)allowed;
+        }
+    }
+    return steps;
+}
+
+
+/**
  * Enable or disable all stepper motor drivers.
  * RAMPS enable pins are active LOW (same as S42C default).
  */
@@ -184,10 +232,26 @@ void setMotorsEnabled(bool enabled) {
 void moveJoint(uint8_t joint, uint32_t steps, bool forward, uint16_t cruiseDelay) {
     if (joint >= NUM_JOINTS) return;
 
+    // Enforce soft limits
+    steps = clampSteps(joint, steps, forward);
+    if (steps == 0) return;
+
     digitalWrite(dirPins[joint], forward ? HIGH : LOW);
     delayMicroseconds(5);
 
     for (uint32_t i = 0; i < steps; i++) {
+        // Check for E-STOP every step
+        if (Serial.available()) {
+            char c = Serial.peek();
+            if (c == '!') {
+                Serial.read();
+                setMotorsEnabled(false);
+                if (forward) { position[joint] += i; } else { position[joint] -= i; }
+                Serial.println(F("!! ESTOP"));
+                return;
+            }
+        }
+
         uint16_t d = rampDelay(i, steps, cruiseDelay);
         digitalWrite(stepPins[joint], HIGH);
         delayMicroseconds(d);
@@ -264,8 +328,8 @@ bool moveSegment(uint8_t joint, uint32_t steps, bool forward,
             }
         }
 
-        // Check for E-STOP every 16 steps during segment execution
-        if ((i & 0x0F) == 0 && Serial.available()) {
+        // Check for E-STOP every step during segment execution
+        if (Serial.available()) {
             char c = Serial.peek();
             if (c == '!') {
                 Serial.read();  // Consume the '!' byte
@@ -334,20 +398,16 @@ void moveCoordinated(int32_t target[NUM_JOINTS], uint16_t cruiseDelay) {
     for (uint32_t step = 0; step < maxSteps; step++) {
         uint16_t d = rampDelay(step, maxSteps, cruiseDelay);
 
-        // Check for E-STOP every 16 steps
-        if ((step & 0x0F) == 0 && Serial.available()) {
+        // Check for E-STOP every step
+        if (Serial.available()) {
             char c = Serial.peek();
             if (c == '!') {
-                Serial.read();  // Consume the '!' byte
+                Serial.read();
                 setMotorsEnabled(false);
-                // Update positions with steps completed
                 for (uint8_t j = 0; j < NUM_JOINTS; j++) {
                     int32_t stepsCompleted = (int32_t)((absDelta[j] * step) / maxSteps);
-                    if (dir[j]) {
-                        position[j] += stepsCompleted;
-                    } else {
-                        position[j] -= stepsCompleted;
-                    }
+                    if (dir[j]) { position[j] += stepsCompleted; }
+                    else { position[j] -= stepsCompleted; }
                 }
                 Serial.println(F("!! ESTOP"));
                 return;

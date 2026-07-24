@@ -49,14 +49,17 @@
 ## Phase 4: Integration Testing (Step Mode)
 
 - [x] Connect RAMPS to Pi via USB — verify `/dev/armold_ramps` udev symlink
-- [ ] Send single-joint jog command from Pi → confirm motor moves with S42C closed-loop
-- [ ] Verify direction: positive command = expected rotation direction for each joint
-- [ ] Verify position tracking: command 360° → confirm output shaft completes one revolution
-- [ ] Calibrate actual steps/degree: command known angles, measure with protractor
-  - Adjust `steps_per_degree` if needed (gearbox ratio may not be exactly 20:1)
-- [ ] Test multi-joint simultaneous movement
-- [ ] Test E-STOP: send `!` mid-move → confirm all motors halt instantly
-- [ ] Test stall detection: physically block a motor → verify S42C OLED shows stall
+- [x] Send single-joint jog command from Pi → confirm motor moves with S42C closed-loop
+- [x] Verify direction: positive command = expected rotation direction for each joint
+- [x] Verify position tracking: command 360° → confirm output shaft completes one revolution
+- [x] Calibrate actual steps/degree: command known angles, measure with protractor
+  - Actual gearbox ratio: ~25.95:1 (83,028 steps = 360° at 16 microsteps)
+- [x] Test multi-joint simultaneous movement
+- [x] Test E-STOP: send `!` mid-move → confirm all motors halt instantly
+- [x] Test stall detection: physically block a motor → verify S42C OLED shows stall
+  - RESULT: S42C detects stall internally but cannot signal back to RAMPS in Step mode
+  - Stall-based E-STOP not possible without UART monitoring hardware
+  - Soft limits are the primary over-travel protection in this architecture
 - [ ] Run existing armold_controller daemon → confirm WebSocket commands work
 - [ ] Test Web UI: jog buttons, enable/disable, set home, E-STOP
 

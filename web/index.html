@@ -188,28 +188,28 @@
             <!-- Joints -->
             <div class="joint-panel" id="joint-0-panel">
                 <div class="joint-header">
-                    <h3>Joint 0 (Base) <span class="board-tag">Einsy</span></h3>
+                    <h3>Joint 0 (Base) <span class="board-tag">RAMPS+S42C</span></h3>
                     <div><span class="joint-position" id="pos-0">0</span><span class="joint-degrees" id="deg-0">0.0°</span></div>
                 </div>
                 <div class="joint-controls" id="ctrl-0"></div>
             </div>
             <div class="joint-panel" id="joint-1-panel">
                 <div class="joint-header">
-                    <h3>Joint 1 (Shoulder) <span class="board-tag">Einsy</span></h3>
+                    <h3>Joint 1 (Shoulder) <span class="board-tag">RAMPS+S42C</span></h3>
                     <div><span class="joint-position" id="pos-1">0</span><span class="joint-degrees" id="deg-1">0.0°</span></div>
                 </div>
                 <div class="joint-controls" id="ctrl-1"></div>
             </div>
             <div class="joint-panel" id="joint-2-panel">
                 <div class="joint-header">
-                    <h3>Joint 2 (Elbow) <span class="board-tag">Einsy</span></h3>
+                    <h3>Joint 2 (Elbow) <span class="board-tag">RAMPS+S42C</span></h3>
                     <div><span class="joint-position" id="pos-2">0</span><span class="joint-degrees" id="deg-2">0.0°</span></div>
                 </div>
                 <div class="joint-controls" id="ctrl-2"></div>
             </div>
-            <div class="joint-panel disabled" id="joint-3-panel">
+            <div class="joint-panel" id="joint-3-panel">
                 <div class="joint-header">
-                    <h3>Joint 3 (Wrist Pitch) <span class="board-tag">Einsy — not wired</span></h3>
+                    <h3>Joint 3 (Wrist Pitch) <span class="board-tag">RAMPS+S42C</span></h3>
                     <div><span class="joint-position" id="pos-3">0</span><span class="joint-degrees" id="deg-3">0.0°</span></div>
                 </div>
                 <div class="joint-controls" id="ctrl-3"></div>
@@ -485,17 +485,20 @@
 
         // --- IK Demo ---
         const ikSequence = [
-            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
-            { j: [0, -90, -90, 0, 0, 0], label: 'Reach down' },
-            { j: [0, -130, -130, 0, 0, 0], label: 'Pick' },
-            { j: [0, -70, -60, 0, 0, 0], label: 'Lift' },
-            { j: [90, -70, -60, 0, 0, 0], label: 'Rotate' },
-            { j: [90, -120, -100, 0, 0, 0], label: 'Place' },
-            { j: [90, -70, -60, 0, 0, 0], label: 'Retract' },
-            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
-            { j: [-45, 90, 120, 0, 0, 0], label: 'Look left' },
-            { j: [45, 90, 120, 0, 0, 0], label: 'Look right' },
-            { j: [0, 0, 0, 0, 0, 0], label: 'Home' },
+            { j: [0, 0, 0, 0], label: 'Home' },
+            { j: [0, -45, -60, -30], label: 'Approach' },
+            { j: [0, -70, -90, -50], label: 'Reach down' },
+            { j: [0, -85, -120, -70], label: 'Pick' },
+            { j: [0, -50, -60, -30], label: 'Lift' },
+            { j: [90, -50, -60, -30], label: 'Rotate' },
+            { j: [90, -75, -100, -55], label: 'Place' },
+            { j: [90, -50, -60, -30], label: 'Retract' },
+            { j: [45, -20, -30, -10], label: 'Transit' },
+            { j: [0, 0, 0, 0], label: 'Home' },
+            { j: [-60, -30, 45, 20], label: 'Look left' },
+            { j: [60, -30, 45, 20], label: 'Look right' },
+            { j: [0, 45, 90, 60], label: 'Reach up' },
+            { j: [0, 0, 0, 0], label: 'Home' },
         ];
 
         async function runIKDemo() {
