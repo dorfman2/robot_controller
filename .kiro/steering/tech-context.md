@@ -28,14 +28,25 @@ inclusion: always
 ### Legacy (from original robot_controller, to be migrated)
 - `rospy`, `roslib`, `std_msgs`, `rosserial_python`, `catkin`
 
-### Next-Gen Stack (BTT grblHAL + IK — spec complete, awaiting hardware)
+### Next-Gen Stack (BTT grblHAL + IK — Phase 1 complete, 7-axis build next)
 - `ikpy` — Inverse kinematics solver (URDF → joint angles)
 - `numpy` — Numerical computation for IK
 - `pyserial` — GRBL serial communication (standard protocol)
 - `websockets` — WebSocket server (existing, stays)
-- **grblHAL** — 6-axis motion controller firmware (community-maintained, proven)
-- **BTT Octopus MAX EZ V1.0** — STM32H723 board, 10 EZ driver slots, native USB
+- **grblHAL** — 7-axis motion controller firmware (community-maintained, proven)
+- **BTT Octopus MAX EZ V1.0** — STM32H723 board, 10 EZ driver slots, native USB, grblHAL flashed
 - **BTT EZ5160 RGB × 7** — TMC5160-TA drivers, 4.7A RMS, 8-56V, SPI, 50mΩ sense
+- **dresco/STM32H7xx** — grblHAL STM32H7 driver repo (PlatformIO build, board maps)
+- **dfu-util** — DFU flash tool (installed on Pi)
+
+### Vision Stack (OAK-1 Lite — spec complete, hardware to acquire)
+- **OAK-1 Lite** — 13MP monocular AI camera (IMX214 + Myriad X VPU)
+- `depthai` — Luxonis Python SDK for OAK camera pipelines
+- `opencv-python` — Image processing, camera calibration
+- `blobconverter` — Convert OpenVINO models to Myriad X .blob format
+- `ultralytics` — YOLOv8 training (dev machine only, not on Pi)
+- **YOLOv8n** — Object detection model (nano variant, runs on Myriad X)
+- **Roboflow** — Dataset annotation and management (cloud service)
 
 ### FK Simulator (Armold_FK_v1 — third-party reference)
 - **Repository**: https://github.com/LeeWhite187/Armold_FK_v1

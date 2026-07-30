@@ -59,6 +59,20 @@ inclusion: always
 - **URDF for ikpy**: must include base_link (fixed) and end_effector link; `active_links_mask` has 8 elements for 6 active joints
 - **Three.js Y-up → URDF Z-up mapping**: Y→Z for vertical axes, X stays X for pitch, adjust wrist roll accordingly
 - **Armold_FK_v1 is a third-party reference** (LeeWhite187) — NOT built by Jeffrey; used for geometry extraction and as a digital twin UI
+- **BTT Octopus MAX EZ grblHAL**: VID `0483` PID `5740` (STM32 Virtual COM Port)
+- **grblHAL `$DFU` command**: enters DFU mode from running firmware — no BOOT0 button needed for reflash
+- **grblHAL Bootloader Entry plugin**: present in current flash (`[PLUGIN:Bootloader Entry v0.02]`)
+- **dfu-util `:leave` error on success**: "Error during download get_status" at end is normal (board resets)
+- **BTT Octopus MAX EZ VUSB jumper**: must be bridged for USB-only power during DFU
+- **DFU entry without button**: `echo '$DFU' > /dev/armold_motion && sleep 2 && sudo dfu-util ...`
+- **grblHAL N_AXIS=7**: requires board map patch — stock `btt_octopus_max_map.h` only defines 6 motors
+- **Motor-7 pins on BTT Octopus MAX EZ**: STEP=PD3, DIR=PD2, EN=PD4, CS/UART=PD7
+- **grblHAL $376 (rotary axes)**: must be set explicitly — `IS_ROTARY_LETTER()` only checks A/B/C, misses U/Y/Z
+- **Mixed mm+degree feed rate**: combined G-code (`G1 X175 Y90 F1800`) scales F as vector — send separately for predictable speed
+- **Soft limits require known position**: `error:9` until homed or position set via `G10 L20`
+- **TMC5160 on BTT Octopus MAX: SPI (not UART)** — pre-routed hardware SPI4, each driver has CS pin on GPIO G14-G9+D7
+- **OAK-1 Lite**: monocular 13MP (IMX214), Myriad X VPU, no stereo depth, USB-C, 2.5W, auto-focus
+- **DepthAI Python SDK**: `pip3 install depthai` — runs on Pi 4, controls OAK pipeline
 
 ## System Architecture
 
@@ -80,6 +94,20 @@ Browser (Web UI + FK Simulator)
 armold_controller (Pi daemon)
     ├── ikpy IK solver (Cartesian → joint angles)
     ├── GrblBoard (GRBL serial protocol, G-code sender)
+    ├── Status poller (2Hz, `?` → broadcast)
+    ├── Sequence → G-code converter
+    └── Vision pipeline (OAK-1 Lite, future)
+            ↕ USB-C native (/dev/armold_motion)
+BTT Octopus MAX EZ (grblHAL, STM32H723 @ 480MHz)
+    ├── 7-axis XYZABCU coordinated motion
+    ├── TMC5160 SPI (via EZ5160 drivers)
+    ├── S-curve + lookahead (built-in)
+    ├── Hardware E-STOP pin
+    ├── StallGuard4 (X axis / linear rail only)
+    └── PWM servo (gripper, M280)
+            ↕ STEP/DIR
+EZ5160 × 7 → NEMA 17 × 7 → Cycloidal/GT2 → Joints + Rail
+```    ├── GrblBoard (GRBL serial protocol, G-code sender)
     ├── Status poller (2Hz, `?` → broadcast)
     └── Sequence → G-code converter
             ↕ USB-C native (/dev/armold_motion)

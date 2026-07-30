@@ -5,43 +5,41 @@ inclusion: always
 # Active Context - Current Task State
 
 ## Current Focus
-Option D (RAMPS + BTT S42C closed-loop) spec created and firmware deployed. Integration testing in progress — J0 and J1 calibrated and confirmed at 16 microsteps, 83,028 steps = 360° (230.6 steps/degree). Soft limits implemented. Hardware physically connected and running on Pi.
+BTT Octopus MAX EZ grblHAL 7-axis spec complete (requirements, design, tasks rewritten). Phase 1 (hardware setup) done — board flashed with 3-axis grblHAL, verified running. Phase 2 next: local PlatformIO build of 7-axis firmware from dresco/STM32H7xx. OAK-1 Lite vision pick-and-place spec also created.
 
 ## Recent Changes
-- Created `.kiro/specs/ramps-s42c-closed-loop/` (requirements.md, design.md, tasks.md)
-- Created `firmware/ramps_s42c/src/main.cpp` — full RAMPS firmware for S42C
-- Added `[env:ramps_s42c]` to platformio.ini
-- Set up passwordless SSH deploy key (`~/.ssh/armold_deploy`) for Pi access
-- Compiled, deployed, and flashed firmware to RAMPS Mega 2560 on Pi
-- Calibrated: 83,028 steps = 360° at 16 microsteps (gearbox ratio ~25.95:1, not 20:1)
-- Added soft limits per joint (J0 ±360°, J1 ±90°, J2 ±150°, J3 ±120°)
-- Tested J0: 90° forward/back — accurate ✓
-- Tested J1: 45° forward/back — accurate ✓
-- All joints set to 16 microsteps (uniform calibration)
-- Finalized BTT grblHAL IK spec (reviewed, inconsistencies fixed, Phase 8 added)
-- Updated all steering files with BTT + S42C decisions
-- Committed to main: `6817ee7`
+- Rewrote `.kiro/specs/btt-grblhal-ik/` for 7-axis (XYZABCU) mapping
+  - X = linear rail (80 steps/mm, 350mm, GT2 20T)
+  - Y–U = arm joints J0–J5 (230.6 steps/°, 25.95:1 gearbox)
+  - Gripper: 180° servo via M280 P0 S<angle> (PWM_SERVO_ENABLE)
+- Local PlatformIO build replaces WebBuilder (dresco/STM32H7xx repo)
+- Board map patch needed: Motor-7 (PD3/PD2/PD4/PD7) for U axis
+- Build flags: `-D N_AXIS=7 -D PWM_SERVO_ENABLE=1 -D SPINDLE0_ENABLE=SPINDLE_NONE`
+- Documented 10 edge cases (EC1–EC10) with mitigations
+- `$DFU` command available for remote flash (no BOOT0 button needed)
+- StallGuard only on X (linear rail); arm uses manual set-zero (G10 L20)
+- SPI confirmed as correct interface for TMC5160/EZ5160 (UART not beneficial)
+- Created OAK-1 Lite vision spec: `.kiro/specs/oak1-vision-pick/`
+- All committed to `feature/btt-grblhal-ik` branch
 
 ## Upcoming Changes
-- Test J2 and J3
-- Test E-STOP mid-move
-- Test stall detection (block a motor physically)
-- Run armold_controller daemon with RAMPS S42C firmware
-- Test Web UI integration
-- Order 4× BTT S42C V1.1 kits (if not already all connected)
-- Calibrate actual steps/degree for J2 and J3 (confirm same gearbox)
+- Phase 2: Clone dresco/STM32H7xx, add 7-axis env, patch board map, build, flash
+- Phase 3: Wire motors to BTT, configure grblHAL settings ($100-$136, $376, TMC)
+- Phase 4: IK setup (ikpy, URDF, calibration)
+- Phase 5: Refactor armold_controller to single GrblBoard class
+- Future: OAK-1 Lite vision integration (after grblHAL stack is stable)
 
 ## Active Decisions and Considerations
 - Project name: "Armold"
 - Software name: "Sweep Sync"
-- **Option D architecture**: Pi → RAMPS → S42C Step mode (closed-loop internal)
-- **No Phase 2 (UART mode)**: Eliminated — requires extra USB-serial adapters
-- **Microstep setting**: 16 for all joints (uniform, same as Einsy)
-- **Calibration**: 83,028 steps/rev = 230.6 steps/degree (empirically measured, same as Einsy)
-- **Gearbox ratio**: ~25.95:1 (not 20:1 as originally assumed)
-- **Soft limits**: J0 ±360°, J1 ±90°, J2 ±150°, J3 ±120°
-- **S42C config per motor**: Mode=Step, Microstep=16, Current=High, Direction=Normal, Enable=Normal, Stall=Enable
-- **Deploy pipeline**: `pio run -e ramps_s42c` → rsync hex → avrdude flash via `armold_deploy` key
-- **Pi SSH**: `ssh -i ~/.ssh/armold_deploy pi@armold.local` (no passphrase)
-- **Serial device**: `/dev/armold_ramps` → ttyUSB0, 250000 baud
-- IK compatible: ikpy + URDF runs on Pi, outputs step commands to RAMPS
+- **7-axis architecture**: Pi → BTT Octopus MAX EZ (grblHAL) → 7 EZ5160 → 7 motors
+- **Axis mapping**: X=rail, Y=J0 Base, Z=J1 Shoulder, A=J2 Elbow, B=J3 Wrist Pitch, C=J4 Wrist Roll, U=J5 Wrist Yaw
+- **Gripper**: 180° servo on FAN4 (PA1/AUXOUTPUT0), powered by separate 5V BEC
+- **$376=126**: Y/Z/A/B/C/U all flagged rotary (U and Y/Z won't auto-detect)
+- **StallGuard**: only X axis (rail) — arm joints home via manual set-zero
+- **Flash method**: `$DFU` for routine updates; BOOT0 only for brick recovery
+- **SPI over UART** for TMC5160: pre-routed hardware SPI4, tested path, no bus contention (SD card unused)
+- **Consolidation**: Einsy + RAMPS retired, single board, single serial port
+- **VID:PID**: 0483:5740 (STM Virtual COM Port) — udev rule for /dev/armold_motion
+- **Deploy key**: `~/.ssh/armold_deploy` (ed25519, no passphrase)
+- **OAK-1 Lite**: monocular vision, eye-to-hand fixed mount, YOLOv8n on Myriad X, known desk plane for depth
