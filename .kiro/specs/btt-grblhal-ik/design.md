@@ -1,10 +1,10 @@
-# BTT Octopus MAX EZ + grblHAL + IK — Design
+# BTT Octopus MAX EZ + grblHAL + IK — Design (7-Axis)
 
 #[[file:requirements.md]]
 
 ## System Overview
 
-The architecture has two distinct layers with a clean interface between them:
+Two distinct layers with a clean interface:
 
 **Layer 1 — Real-time motion (grblHAL on STM32H723):**
 All timing-critical work. Receives G-code, executes S-curve trajectories, controls TMC5160 via SPI, fires STEP/DIR signals. The Pi never touches motor timing.
@@ -12,80 +12,202 @@ All timing-critical work. Receives G-code, executes S-curve trajectories, contro
 **Layer 2 — Intelligence (Python on Pi):**
 IK solving, trajectory planning (joint angles → G-code), web UI, WebSocket server. Pure Python, no real-time requirements.
 
-The interface between them is standard GRBL protocol — the most battle-tested CNC serial protocol in existence.
+Interface: standard GRBL protocol over native USB CDC.
 
 ---
 
-## grblHAL Configuration
+## Local PlatformIO Build (replaces WebBuilder)
 
-### Axis Mapping
-```
-GRBL axis → Armold joint → Motor slot on Octopus MAX EZ
-    X     →     J0 (Base)            → Motor-1
-    Y     →     J1 (Shoulder)        → Motor-2
-    Z     →     J2 (Elbow)           → Motor-3
-    A     →     J3 (Wrist Pitch)     → Motor-4
-    B     →     J4 (Wrist Roll)      → Motor-5
-    C     →     J5 (Wrist Yaw)       → Motor-6
-    -     →     J6 (Gripper)         → Motor-7 (future, servo or stepper)
-```
+### Repository: dresco/STM32H7xx
 
-### Key grblHAL Settings
-```
-; Steps per degree (83,028 steps/rev ÷ 360°)
-$100=230.6   ; X steps/degree (J0 Base)
-$101=230.6   ; Y steps/degree (J1 Shoulder)
-$102=230.6   ; Z steps/degree (J2 Elbow)
-$103=230.6   ; A steps/degree (J3 Wrist Pitch)
-$104=230.6   ; B steps/degree (J4 Wrist Roll)
-$105=230.6   ; C steps/degree (J5 Wrist Yaw)
+The grblHAL STM32H7 driver lives at https://github.com/dresco/STM32H7xx and has
+first-class PlatformIO support with board-specific environments already defined.
 
-; Max feed rates (degrees/min)
-$110=1800    ; X max rate (30 deg/sec)
-$111=1800    ; Y max rate
-$112=1800    ; Z max rate
-$113=1800    ; A max rate
-$114=1800    ; B max rate
-$115=1800    ; C max rate
+### Setup
 
-; Acceleration (degrees/sec²)
-$120=900     ; X acceleration
-$121=900     ; Y acceleration
-$122=900     ; Z acceleration
-$123=900     ; A acceleration
-$124=900     ; B acceleration
-$125=900     ; C acceleration
+```bash
+# Clone grblHAL STM32H7 driver (includes board maps, startup code, PlatformIO config)
+cd /Users/jdorfman/Code
+git clone --recursive https://github.com/dresco/STM32H7xx.git grblHAL-STM32H7xx
+cd grblHAL-STM32H7xx
 
-; Soft limits — $130-$135 are TOTAL travel (full range, not half)
-; e.g. ±180° = 360° total, ±90° = 180° total
-$130=360     ; X max travel (J0 ±180°)
-$131=180     ; Y max travel (J1 ±90°)
-$132=300     ; Z max travel (J2 ±150°)
-$133=240     ; A max travel (J3 ±120°)
-$134=180     ; B max travel (J4 ±90°)
-$135=360     ; C max travel (J5 ±180°)
-$20=1        ; Soft limits enable
+# Build for BTT Octopus MAX with TMC5160 (existing 6-axis environment)
+pio run -e btt_octopus_max_h723_tmc5160
 
-; Home pose (machine zero reference) — from FK simulator robot.js
-; Joint angles: [J0=0°, J1=-30°, J2=70°, J3=50°, J4=0°, J5=0°]
-; Place arm physically at this pose before running $H homing
-
-; TMC5160 SPI settings (via grblHAL Trinamic plugin)
-$TMC_X_CURRENT=1200  ; mA RMS
-$TMC_X_MICROSTEPS=16
-$TMC_X_MODE=SpreadCycle
-$TMC_X_SGTHR=4       ; StallGuard threshold (tune per joint)
-; (repeat for Y,Z,A,B,C)
+# Output: .pio/build/btt_octopus_max_h723_tmc5160/firmware.bin
 ```
 
-### Motion Profile
-grblHAL's built-in planner provides:
-- S-curve acceleration (jerk-limited via `$23` jerk setting)
-- Lookahead across queued moves (eliminates pause between sequential jogs)
-- Constant junction velocity when direction doesn't change
-- Cornering algorithm for smooth multi-axis coordination
+### Customization for 7-Axis (Our Build)
 
-No custom trajectory code needed — this is what grblHAL was built for.
+The stock environment (`btt_octopus_max_h723_tmc5160`) only builds 3 axes (XYZ) with
+3 ABC motors for a total of 6. We need 7 axes (XYZABCU).
+
+**Add a new PlatformIO environment** in `platformio.ini`:
+
+```ini
+# BTT Octopus Max (H723) — 7-axis Armold robot arm build
+[env:btt_octopus_max_armold_7axis]
+board = generic_stm32h723ze
+board_build.ldscript = STM32H723ZETX_FLASH.ld
+build_flags = ${common.build_flags}
+              ${usb_h723.build_flags}
+              ${sdcard.build_flags}
+  -D BOARD_BTT_OCTOPUS_MAX
+  -D HSE_VALUE=25000000
+  -D TRINAMIC_ENABLE=5160
+  -D EEPROM_ENABLE=32
+  -D N_AXIS=7
+  -D PWM_SERVO_ENABLE=1
+  -D SPINDLE0_ENABLE=SPINDLE_NONE
+lib_deps = ${common_h723.lib_deps}
+           ${usb_h723.lib_deps}
+           ${sdcard.lib_deps}
+           motors
+           trinamic
+           eeprom
+lib_extra_dirs = ${common.lib_extra_dirs}
+                 ${usb_h723.lib_extra_dirs}
+                 ${sdcard.lib_extra_dirs}
+upload_protocol = dfu
+```
+
+### Board Map Patch (Motor-7 / U-axis)
+
+The stock `boards/btt_octopus_max_map.h` only defines 6 motors (Motor-1 through Motor-6).
+The board has 10 physical EZ sockets. We add Motor-7 pins for the U axis.
+
+**Patch to `boards/btt_octopus_max_map.h`:**
+
+```c
+// Change the error guard from 3 to 4:
+#if N_ABC_MOTORS > 4
+#error "Octopus MAX board map is configured for 7 motors max (Armold 7-axis)."
+#endif
+
+// Add after the M5 (Motor-6) block:
+#if N_ABC_MOTORS > 3
+#define M6_AVAILABLE                        // Motor-7
+#define M6_STEP_PORT                GPIOD
+#define M6_STEP_PIN                 3
+#define M6_DIRECTION_PORT           GPIOD
+#define M6_DIRECTION_PIN            2
+#define M6_LIMIT_PORT               GPIOF   // If limit switch needed, assign available pin
+#define M6_LIMIT_PIN                10      // FWS pin repurposed (or use DIAG from TMC)
+#define M6_ENABLE_PORT              GPIOD
+#define M6_ENABLE_PIN               4
+#endif
+
+// Add SPI CS pin for Motor-7 TMC5160:
+#ifdef M6_AVAILABLE
+#define MOTOR_CSM6_PORT             GPIOD
+#define MOTOR_CSM6_PIN              7
+#endif
+```
+
+**Motor-7 physical pins (from BTT schematic):**
+- STEP: PD3 (pin 117)
+- DIR: PD2 (pin 116)
+- EN: PD4 (pin 118)
+- CS/UART: PD7 (pin 123)
+
+### Build and Flash Workflow
+
+```bash
+# Build 7-axis firmware
+cd /Users/jdorfman/Code/grblHAL-STM32H7xx
+pio run -e btt_octopus_max_armold_7axis
+
+# Copy to Pi
+scp .pio/build/btt_octopus_max_armold_7axis/firmware.bin \
+    pi@armold.local:/tmp/firmware.bin
+
+# --- Option A: Remote flash via $DFU (no button press) ---
+# Requires Bootloader Entry plugin in running firmware (already present)
+ssh pi@armold.local "echo '\$DFU' > /dev/armold_motion && sleep 2 && \
+    sudo dfu-util -a 0 -s 0x08000000:leave -D /tmp/firmware.bin"
+
+# --- Option B: Manual DFU (fallback if firmware is bricked) ---
+# Put board in DFU mode (BOOT0 + RESET)
+ssh pi@armold.local "sudo dfu-util -a 0 -s 0x08000000:leave -D /tmp/firmware.bin"
+
+# Verify after reboot:
+# $I should show [AXS:7:XYZABCU]
+```
+
+---
+
+## 7-Axis Mapping
+
+```
+GRBL axis → Motor Slot → Armold Joint → Physical Hardware
+    X     →   Motor-1   →   Linear Rail    → NEMA 17, GT2 20T, 350mm travel
+    Y     →   Motor-2   →   J0 (Base)      → NEMA 17, ~25.95:1 cycloidal
+    Z     →   Motor-3   →   J1 (Shoulder)  → NEMA 17, ~25.95:1 cycloidal
+    A     →   Motor-4   →   J2 (Elbow)     → NEMA 17, ~25.95:1 cycloidal
+    B     →   Motor-5   →   J3 (Wrist Pitch) → NEMA 17, ~25.95:1 cycloidal
+    C     →   Motor-6   →   J4 (Wrist Roll)  → NEMA 17, ~25.95:1 cycloidal
+    U     →   Motor-7   →   J5 (Wrist Yaw)   → NEMA 17, ~25.95:1 cycloidal
+```
+
+### Key grblHAL Settings (7-Axis)
+
+```gcode
+; --- Steps per unit ---
+$100=80.0      ; X steps/mm (linear rail: GT2 2mm pitch, 20T, 16µstep = 200*16/(2*20))
+$101=230.6     ; Y steps/degree (J0 Base: 83028/360)
+$102=230.6     ; Z steps/degree (J1 Shoulder)
+$103=230.6     ; A steps/degree (J2 Elbow)
+$104=230.6     ; B steps/degree (J3 Wrist Pitch)
+$105=230.6     ; C steps/degree (J4 Wrist Roll)
+$106=230.6     ; U steps/degree (J5 Wrist Yaw)
+
+; --- Max feed rates ---
+$110=5000      ; X mm/min (linear rail)
+$111=1800      ; Y deg/min (J0, 30°/sec)
+$112=1800      ; Z deg/min (J1)
+$113=1800      ; A deg/min (J2)
+$114=1800      ; B deg/min (J3)
+$115=1800      ; C deg/min (J4)
+$116=1800      ; U deg/min (J5)
+
+; --- Acceleration ---
+$120=500       ; X mm/sec² (linear rail)
+$121=900       ; Y deg/sec² (J0)
+$122=900       ; Z deg/sec² (J1)
+$123=900       ; A deg/sec² (J2)
+$124=900       ; B deg/sec² (J3)
+$125=900       ; C deg/sec² (J4)
+$126=900       ; U deg/sec² (J5)
+
+; --- Soft limits (TOTAL travel) ---
+$20=1          ; Soft limits enable
+$130=350       ; X max travel (350mm rail)
+$131=360       ; Y max travel (J0 ±180°)
+$132=180       ; Z max travel (J1 ±90°)
+$133=300       ; A max travel (J2 ±150°)
+$134=240       ; B max travel (J3 ±120°)
+$135=180       ; C max travel (J4 ±90°)
+$136=360       ; U max travel (J5 ±180°)
+
+; --- Homing ---
+; Only X (linear rail) uses sensorless homing
+$22=1          ; Homing enable
+$44=1          ; Homing cycle 0: X axis only (bitmask bit0=X=1)
+$45=0          ; No homing cycle 1
+$46=0          ; No homing cycle 2
+
+; --- Rotary axis designation ---
+; $376 bitmask: bit3=A, bit4=B, bit5=C, bit6=U
+; A+B+C+U = 8+16+32+64 = 120
+; But Y and Z are also rotary in our case (arm joints mapped there)
+; Y+Z+A+B+C+U = 2+4+8+16+32+64 = 126
+$376=126       ; All arm axes are rotary (Y,Z,A,B,C,U)
+
+; --- TMC5160 settings (via Trinamic plugin) ---
+; Current: 1200mA RMS for all axes
+; Microsteps: 16 (with 256 interpolation)
+; Mode: SpreadCycle (mode 0)
+```
 
 ---
 
@@ -93,416 +215,416 @@ No custom trajectory code needed — this is what grblHAL was built for.
 
 ### Library: ikpy
 
+The IK chain covers only the 6-DOF arm (J0–J5, mapped to GRBL Y–U).
+The linear rail (X) is NOT part of the IK chain — it's controlled independently.
+
 ```python
 import ikpy.chain
 import numpy as np
 
-# Load chain from URDF.
-# ikpy adds a fixed "base" link at index 0 and a fixed "end" link at the last index.
-# With 6 active joints, the chain has 8 links total (base + 6 joints + end_effector).
-# active_links_mask must have the same length as the number of links (8).
+# Load chain from URDF (6 arm joints only, no linear rail)
 arm = ikpy.chain.Chain.from_urdf_file(
     "armold.urdf",
     active_links_mask=[False, True, True, True, True, True, True, False]
     #                  base   J0    J1    J2    J3    J4    J5    tip
 )
 
-# Home pose in radians (from simulator robot.js JOINTS home values)
+# Home pose in degrees (from Armold_FK_v1 simulator)
 HOME_ANGLES_DEG = [0.0, -30.0, 70.0, 50.0, 0.0, 0.0]
-HOME_ANGLES_RAD = [np.radians(d) for d in HOME_ANGLES_DEG]
 
-# Joint limits matching simulator DIMS (radians)
+# Joint limits (degrees)
 JOINT_LIMITS_DEG = [
     (-180, 180),   # J0 Base yaw
     (-90,  90),    # J1 Shoulder pitch
     (-150, 150),   # J2 Elbow pitch
     (-120, 120),   # J3 Wrist pitch
-    (-90,  90),    # J4 Wrist yaw
-    (-180, 180),   # J5 Wrist roll
+    (-90,  90),    # J4 Wrist roll
+    (-180, 180),   # J5 Wrist yaw
 ]
 
-def inverse_kinematics(
-    x: float, y: float, z: float,
-    roll: float = 0.0, pitch: float = 0.0, yaw: float = 0.0,
-    initial_angles_deg: list[float] | None = None,
-) -> list[float] | None:
-    """Compute joint angles for a Cartesian target.
+def inverse_kinematics(x, y, z, roll=0.0, pitch=0.0, yaw=0.0,
+                        initial_angles_deg=None):
+    """Compute 6 joint angles for a Cartesian target.
 
-    Args:
-        x, y, z: Target position in meters (URDF Z-up frame)
-        roll, pitch, yaw: Target orientation in radians
-        initial_angles_deg: Warm-start seed (degrees). Defaults to home pose.
-
-    Returns:
-        6 joint angles in degrees, or None if no solution found.
+    Returns list of 6 degrees, or None if unreachable.
     """
     target_matrix = np.eye(4)
     target_matrix[:3, 3] = [x, y, z]
-    # Orientation can be added via rotation matrix if needed
 
-    seed_deg = initial_angles_deg if initial_angles_deg is not None else HOME_ANGLES_DEG
-    # ikpy expects the full link array including fixed base/end (zeros for inactive)
+    seed_deg = initial_angles_deg or HOME_ANGLES_DEG
     seed_rad = [0.0] + [np.radians(d) for d in seed_deg] + [0.0]
 
     try:
         result_rad = arm.inverse_kinematics(
-            target_matrix,
-            initial_position=seed_rad,
-            max_iter=1000,
+            target_matrix, initial_position=seed_rad, max_iter=1000
         )
-        # Slice off the fixed base (index 0) and end (index -1)
         degrees = [np.degrees(r) for r in result_rad[1:7]]
         return clamp_to_limits(degrees)
     except Exception:
-        return None  # No solution — caller should report error, not move
+        return None
 
-def clamp_to_limits(angles: list[float]) -> list[float]:
-    """Enforce per-joint degree limits."""
-    return [
-        max(lo, min(hi, a))
-        for a, (lo, hi) in zip(angles, JOINT_LIMITS_DEG)
-    ]
+def clamp_to_limits(angles):
+    return [max(lo, min(hi, a))
+            for a, (lo, hi) in zip(angles, JOINT_LIMITS_DEG)]
 ```
 
-### URDF Definition (armold.urdf)
+### URDF (armold.urdf)
 
-Populated from the FK simulator geometry (`Armold_FK_v1/src/robot.js` DIMS).
-Simulator units are proportional — scale by measuring one real link and applying the ratio.
-
-**Simulator DIMS (relative units, need scaling to meters):**
-- baseHeight: 0.35, shoulderHeight: 0.55, upperArm: 1.50, foreArm: 1.25, wristLen: 0.35, toolLen: 0.45
-
-**Measure the physical upper arm** (shoulder to elbow, center-to-center) and set `SCALE = real_mm / 1500`.
-
-```xml
-<?xml version="1.0"?>
-<!--
-  Armold URDF — derived from FK simulator geometry (Armold_FK_v1/src/robot.js DIMS).
-  Convention: URDF Z-up. Arm links extend along local +Z axis of each joint frame.
-  Simulator used Three.js Y-up; axes are remapped here to URDF Z-up convention.
-
-  SCALE = physical_upper_arm_mm / 150.0
-  (divide by 150 because DIMS.upperArm=1.5 and URDF units are meters)
-  Example: if upper arm measures 225mm → SCALE = 225/150 = 1.5 → lengths below × 1.5
--->
-<robot name="armold">
-
-  <!-- Fixed world base -->
-  <link name="base_link"/>
-
-  <!-- Joint 0: Base yaw — rotates about Z-axis (vertical) in URDF Z-up convention -->
-  <joint name="joint_0" type="revolute">
-    <parent link="base_link"/>
-    <child link="link_0"/>
-    <origin xyz="0 0 0.35"/>  <!-- baseHeight × SCALE (pedestal height) -->
-    <axis xyz="0 0 1"/>       <!-- Z-axis yaw (vertical axis, URDF convention) -->
-    <limit lower="-3.14159" upper="3.14159" velocity="0.524" effort="8.8"/>
-    <!-- ±180° — confirm physical stop on real arm -->
-  </joint>
-  <link name="link_0"/>
-
-  <!-- Joint 1: Shoulder pitch — rotates about Y-axis (left-right horizontal) -->
-  <joint name="joint_1" type="revolute">
-    <parent link="link_0"/>
-    <child link="link_1"/>
-    <origin xyz="0 0 0.55"/>  <!-- shoulderHeight × SCALE (riser above base) -->
-    <axis xyz="0 1 0"/>       <!-- Y-axis pitch -->
-    <limit lower="-1.5708" upper="1.5708" velocity="0.524" effort="8.8"/>
-    <!-- ±90° -->
-  </joint>
-  <link name="link_1"/>
-
-  <!-- Joint 2: Elbow pitch — rotates about Y-axis, offset along Z (upper arm) -->
-  <joint name="joint_2" type="revolute">
-    <parent link="link_1"/>
-    <child link="link_2"/>
-    <origin xyz="0 0 1.50"/>  <!-- upperArm × SCALE (shoulder→elbow length) -->
-    <axis xyz="0 1 0"/>       <!-- Y-axis pitch -->
-    <limit lower="-2.6180" upper="2.6180" velocity="0.524" effort="8.8"/>
-    <!-- ±150° -->
-  </joint>
-  <link name="link_2"/>
-
-  <!-- Joint 3: Wrist Pitch — rotates about Y-axis, offset along Z (forearm) -->
-  <joint name="joint_3" type="revolute">
-    <parent link="link_2"/>
-    <child link="link_3"/>
-    <origin xyz="0 0 1.25"/>  <!-- foreArm × SCALE (elbow→wrist length) -->
-    <axis xyz="0 1 0"/>       <!-- Y-axis pitch -->
-    <limit lower="-2.0944" upper="2.0944" velocity="0.524" effort="4.4"/>
-    <!-- ±120° -->
-  </joint>
-  <link name="link_3"/>
-
-  <!-- Joint 4: Wrist Yaw — rotates about Z-axis (tool twist), offset along Z -->
-  <joint name="joint_4" type="revolute">
-    <parent link="link_3"/>
-    <child link="link_4"/>
-    <origin xyz="0 0 0.35"/>  <!-- wristLen × SCALE -->
-    <axis xyz="0 0 1"/>       <!-- Z-axis yaw -->
-    <limit lower="-1.5708" upper="1.5708" velocity="0.524" effort="4.4"/>
-    <!-- ±90° -->
-  </joint>
-  <link name="link_4"/>
-
-  <!-- Joint 5: Wrist Roll — rotates about X-axis (roll about tool axis) -->
-  <joint name="joint_5" type="revolute">
-    <parent link="link_4"/>
-    <child link="end_effector"/>
-    <origin xyz="0 0 0"/>
-    <axis xyz="1 0 0"/>       <!-- X-axis roll -->
-    <limit lower="-3.14159" upper="3.14159" velocity="0.524" effort="4.4"/>
-    <!-- ±180° -->
-  </joint>
-  <link name="end_effector">
-    <!-- Tool tip is 0.45 × SCALE above the wrist roll joint -->
-    <visual>
-      <origin xyz="0 0 0.45"/>  <!-- toolLen × SCALE -->
-      <geometry><sphere radius="0.02"/></geometry>
-    </visual>
-  </link>
-
-</robot>
-```
-
-**Calibration procedure:**
-1. Measure physical upper arm length (shoulder to elbow pivot, mm)
-2. `SCALE = measured_mm / 1500.0` (1500 = simulator upperArm × 1000)
-3. Multiply all `DIMS` by SCALE to get real-world meters for URDF
-4. Validate FK: set joints to home pose (-30, 70, 50, 0, 0 degrees) → compare tool tip position to physical arm measurement
+Same as previous spec — defines the 6 arm joints in Z-up convention.
+Linear rail is omitted from URDF (it's a separate workspace positioner, not an arm link).
+Geometry from Armold_FK_v1 simulator DIMS, scaled to meters by physical measurement.
 
 ---
 
-## Pi Software: armold_controller Refactor
+## Pi Software: armold_controller (GrblBoard)
 
-### Key Changes from Current Architecture
+### G-code Generation (7-Axis)
 
-| Current | New |
-|---------|-----|
-| Custom binary/ASCII serial protocol | Standard GRBL protocol |
-| Custom firmware (race conditions) | grblHAL (proven) |
-| Position tracked in daemon | Position from GRBL `?` status |
-| Segment-based trajectory | G-code trajectory (grblHAL plans) |
-| No IK | ikpy IK solver |
-
-### GRBL Serial Handler
+The key difference from 6-axis: arm joints map to Y,Z,A,B,C,U instead of X,Y,Z,A,B,C.
 
 ```python
+# Axis letter mapping for arm joints
+ARM_AXES = ['Y', 'Z', 'A', 'B', 'C', 'U']  # J0-J5
+RAIL_AXIS = 'X'
+
+def joints_to_gcode(target_degrees: list[float], feedrate: float = 1800) -> str:
+    """Convert 6 joint angles to G-code (arm only, no rail)."""
+    parts = [f'{ax}{deg:.3f}' for ax, deg in zip(ARM_AXES, target_degrees)]
+    return f'G1 {" ".join(parts)} F{feedrate}'
+
+def rail_to_gcode(position_mm: float, feedrate: float = 5000) -> str:
+    """Move linear rail to absolute position."""
+    return f'G1 X{position_mm:.2f} F{feedrate}'
+
+def combined_gcode(rail_mm: float, joints_deg: list[float], feedrate: float = 1800) -> str:
+    """Move rail + arm simultaneously."""
+    parts = [f'X{rail_mm:.2f}']
+    parts += [f'{ax}{deg:.3f}' for ax, deg in zip(ARM_AXES, joints_deg)]
+    return f'G1 {" ".join(parts)} F{feedrate}'
+```
+
+### GrblBoard Class
+
+```python
+import serial
+import threading
+import time
+from dataclasses import dataclass
+
+@dataclass
+class GrblStatus:
+    state: str = 'Unknown'
+    mpos: list = None  # [X, Y, Z, A, B, C, U] — 7 values
+
+    @classmethod
+    def parse(cls, line: str):
+        """Parse grblHAL status response.
+        Example: <Idle|MPos:175.000,0.000,-30.000,70.000,50.000,0.000,0.000|...>
+        """
+        if not line.startswith('<'):
+            return cls()
+        line = line.strip('<>')
+        parts = line.split('|')
+        state = parts[0]
+        mpos = None
+        for p in parts[1:]:
+            if p.startswith('MPos:'):
+                mpos = [float(v) for v in p[5:].split(',')]
+        return cls(state=state, mpos=mpos)
+
+
 class GrblBoard:
-    """Manages communication with grblHAL over USB serial.
+    """Single-board GRBL serial interface for 7-axis BTT Octopus MAX EZ."""
 
-    grblHAL default baud: 115200. For faster status polling, 460800 is
-    supported — set via grblHAL $Settings and match here.
-    The BTT Octopus MAX EZ uses native USB (STM32 CDC), so baud rate is
-    a virtual setting; 115200 is fine for all G-code workloads.
-    """
-
-    def __init__(self, port: str, baud: int = 115200):
+    def __init__(self, port: str = '/dev/armold_motion', baud: int = 115200):
         self._ser = serial.Serial(port, baud, timeout=1.0)
         self._lock = threading.Lock()
-        self._status = GrblStatus()
-        self._drain_startup()  # consume grblHAL welcome banner
+        self._drain_startup()
 
     def _drain_startup(self):
-        """Consume grblHAL startup message (e.g. 'GrblHAL 1.1f ...')."""
-        import time
+        """Consume grblHAL welcome banner."""
         time.sleep(0.5)
         self._ser.read(self._ser.in_waiting or 1)
 
     def send_gcode(self, cmd: str) -> bool:
-        """Send a G-code command and wait for 'ok' or 'error:N' response.
-
-        Do NOT reset_input_buffer before sending — that would silently
-        drop any 'ok' responses already queued from prior commands.
-        """
+        """Send G-code, wait for 'ok' or 'error:N'. Returns True on ok."""
         with self._lock:
             self._ser.write(f'{cmd}\n'.encode())
             response = self._ser.readline().decode().strip()
             return response == 'ok'
 
     def estop(self):
-        """Send real-time E-STOP '!' byte.
-
-        Real-time commands bypass the serial lock — they are single bytes
-        that grblHAL processes immediately, interrupting any running move.
-        Writing a single byte is atomic at the OS level.
-        """
-        self._ser.write(b'!')
-
-    def feed_hold(self):
-        """Send real-time feed hold (pause mid-move)."""
+        """Send real-time E-STOP '!' — bypasses lock, single byte, immediate."""
         self._ser.write(b'!')
 
     def cycle_start(self):
-        """Send real-time cycle start (resume after feed hold)."""
+        """Resume after feed hold."""
         self._ser.write(b'~')
 
     def query_status(self) -> GrblStatus:
-        """Poll current state. '?' is a real-time command; no lock needed."""
+        """Poll position via '?' real-time command."""
         self._ser.write(b'?')
         with self._lock:
             line = self._ser.readline().decode().strip()
         return GrblStatus.parse(line)
-        # Example response: <Idle,MPos:0.000,0.000,0.000,0.000,0.000,0.000>
+
+    def unlock(self) -> bool:
+        """Clear alarm state."""
+        return self.send_gcode('$X')
+
+    def home(self, axis: str = None) -> bool:
+        """Home all axes or a specific axis."""
+        cmd = f'$H{axis}' if axis else '$H'
+        return self.send_gcode(cmd)
+
+    def set_gripper(self, angle: int) -> bool:
+        """Set gripper servo angle (0-180). Uses grblHAL M280 PWM servo."""
+        angle = max(0, min(180, angle))
+        return self.send_gcode(f'M280 P0 S{angle}')
 ```
 
 ### Motion Manager with IK
 
 ```python
 class MotionManager:
-    """Coordinates IK solving and G-code generation."""
+    """Coordinates IK, joint jog, rail control, and G-code generation."""
 
     def __init__(self, board: GrblBoard):
         self._board = board
         self._ik_chain = load_arm_chain()
-        self._current_joints = [0.0] * 6  # degrees
-        self._feed_rate = 1800  # degrees/min
+        self._feed_rate = 1800  # degrees/min for arm
+        self._rail_feed = 5000  # mm/min for rail
 
     def jog_joint(self, joint: int, delta_deg: float):
-        """Move a single joint by delta degrees."""
-        target = list(self._current_joints)
-        target[joint] += delta_deg
-        self._move_joints(target)
+        """Jog a single arm joint (0-5) by delta degrees."""
+        status = self._board.query_status()
+        if status.mpos is None:
+            return False
+        # mpos[0]=rail, mpos[1:7]=arm joints
+        current_joints = status.mpos[1:7]
+        current_joints[joint] += delta_deg
+        gcode = joints_to_gcode(current_joints, self._feed_rate)
+        return self._board.send_gcode(gcode)
 
-    def move_cartesian(self, x: float, y: float, z: float,
-                        roll=0.0, pitch=0.0, yaw=0.0) -> bool:
-        """Move end effector to Cartesian position via IK."""
+    def jog_rail(self, delta_mm: float):
+        """Jog linear rail by delta mm."""
+        status = self._board.query_status()
+        if status.mpos is None:
+            return False
+        new_pos = status.mpos[0] + delta_mm
+        gcode = rail_to_gcode(new_pos, self._rail_feed)
+        return self._board.send_gcode(gcode)
+
+    def move_cartesian(self, x, y, z, roll=0.0, pitch=0.0, yaw=0.0):
+        """IK solve → G-code → send. Returns False if unreachable."""
         angles = inverse_kinematics(x, y, z, roll, pitch, yaw)
         if angles is None:
-            return False  # No IK solution
-        self._move_joints(angles)
-        return True
+            return False
+        gcode = joints_to_gcode(angles, self._feed_rate)
+        return self._board.send_gcode(gcode)
 
-    def _move_joints(self, target_degrees: list[float]):
-        """Convert joint angles to G-code and send."""
-        names = ['X', 'Y', 'Z', 'A', 'B', 'C']
-        parts = [f'{n}{d:.3f}' for n, d in zip(names, target_degrees)]
-        gcode = f'G1 {" ".join(parts)} F{self._feed_rate}'
-        self._board.send_gcode(gcode)
-        self._current_joints = list(target_degrees)
+    def home_rail(self):
+        """Home linear rail via StallGuard, then center at 175mm."""
+        self._board.home('X')
+        time.sleep(2)
+        self._board.send_gcode('G1 X175 F3000')
+
+    def set_arm_home(self):
+        """Set current arm position as zero (manual home).
+        User must physically place arm at home pose first.
+        """
+        self._board.send_gcode('G10 L20 P1 Y0 Z0 A0 B0 C0 U0')
 ```
 
-### Sequence Export from Simulator → G-code
-
-The FK simulator's JSON export format (`armold-sequence.json`) can be directly converted to G-code:
+### Daemon Startup Sequence (Edge Case Aware)
 
 ```python
-import json
+async def startup(board: GrblBoard):
+    """Initialize grblHAL after power cycle or daemon restart.
 
-def sequence_to_gcode(json_file: str, feedrate: float = 1800) -> list[str]:
-    """Convert Armold_FK_v1 exported sequence to grblHAL G-code.
-
-    Simulator sequence format:
-    {"version": 1, "steps": [
-        {"name": "Home", "angles": [0, -30, 70, 50, 0, 0],
-         "gripper": 0, "duration": 1.0, "dwell": 0.2}
-    ]}
-
-    Args:
-        json_file: Path to exported sequence JSON
-        feedrate: Degrees/min (duration hint, grblHAL plans actual rate)
-
-    Returns:
-        List of G-code strings
+    Handles: EC3 (soft limits need position), EC7 (stale position),
+    EC8 (response validation).
     """
+    # 1. Query state — board may be in Alarm after power cycle
+    status = board.query_status()
+
+    if status.state == 'Alarm':
+        # Unlock alarm (required before any movement)
+        board.unlock()  # $X
+        await asyncio.sleep(0.5)
+
+    # 2. Home linear rail (only axis with StallGuard)
+    board.home('X')
+    await asyncio.sleep(5)  # Wait for homing to complete
+
+    # 3. Center rail at 175mm
+    board.send_gcode('G1 X175 F3000')
+    await asyncio.sleep(3)
+
+    # 4. Set arm position to zero (user must have placed arm at home pose)
+    # This satisfies soft limit requirement for known position
+    board.send_gcode('G10 L20 P1 Y0 Z0 A0 B0 C0 U0')
+
+    # 5. Verify all 7 axes report position
+    status = board.query_status()
+    if status.mpos is None or len(status.mpos) != 7:
+        raise RuntimeError(f"Expected 7-axis MPos, got: {status.mpos}")
+
+    # 6. Enable soft limits now that position is known
+    board.send_gcode('$20=1')
+```
+
+### USB Disconnect Recovery (EC6)
+
+```python
+async def reconnect_loop(board: GrblBoard):
+    """Monitor serial connection health. On disconnect, attempt reconnect."""
+    while True:
+        try:
+            status = board.query_status()
+            if status.state == 'Unknown':
+                raise serial.SerialException("No response")
+        except (serial.SerialException, OSError):
+            logger.warning("USB connection lost, attempting reconnect...")
+            await asyncio.sleep(2)
+            try:
+                board.reconnect()
+                # After reconnect, check if motion is still running
+                status = board.query_status()
+                if status.state == 'Run':
+                    board.estop()  # Stop any buffered motion
+                    logger.warning("Stopped residual motion after reconnect")
+            except Exception as e:
+                logger.error(f"Reconnect failed: {e}")
+                continue
+        await asyncio.sleep(0.5)
+```
+
+### Sequence Export → G-code (Updated for 7-Axis)
+
+```python
+def sequence_to_gcode(json_file: str, feedrate: float = 1800) -> list[str]:
+    """Convert Armold_FK_v1 sequence JSON to 7-axis G-code.
+
+    Simulator angles map to GRBL axes Y,Z,A,B,C,U (not X—that's rail).
+    """
+    import json
     with open(json_file) as f:
         data = json.load(f)
 
     gcode = []
     for step in data['steps']:
-        a = step['angles']  # [j0, j1, j2, j3, j4, j5] in degrees
-        # Map to GRBL axes: X=J0, Y=J1, Z=J2, A=J3, B=J4, C=J5
-        # Feed rate from duration: degrees_moved / duration_seconds × 60
-        line = f"G1 X{a[0]:.2f} Y{a[1]:.2f} Z{a[2]:.2f} A{a[3]:.2f} B{a[4]:.2f} C{a[5]:.2f} F{feedrate}"
+        a = step['angles']  # [j0, j1, j2, j3, j4, j5]
+        line = f"G1 Y{a[0]:.2f} Z{a[1]:.2f} A{a[2]:.2f} B{a[3]:.2f} C{a[4]:.2f} U{a[5]:.2f} F{feedrate}"
         gcode.append(f"; {step['name']}")
         gcode.append(line)
         if step.get('dwell', 0) > 0:
-            gcode.append(f"G4 P{step['dwell']:.1f}")  # Dwell in seconds
-
+            gcode.append(f"G4 P{step['dwell']:.1f}")
     return gcode
 ```
 
-This means the simulator's **demo pick-and-place program can run directly on the physical arm** after calibration.
+---
 
-The existing JSON WebSocket protocol stays. New commands added:
+## WebSocket Protocol (Updated)
 
 ```json
-// New: Cartesian jog
-{"cmd": "move_cartesian", "x": 0.3, "y": 0.0, "z": 0.2, "roll": 0, "pitch": 0, "yaw": 0}
+// Joint jog (arm)
+{"cmd": "jog", "joint": 0, "delta": 5.0}
 
-// New: IK mode status
-{"type": "state", "position": [...], "cartesian": {"x": 0.3, "y": 0.0, "z": 0.2}, ...}
+// Rail jog
+{"cmd": "jog_rail", "delta": 10.0}
 
-// Existing (unchanged):
-{"cmd": "jog", "joint": 0, "delta": 5189}
+// Cartesian move (IK)
+{"cmd": "move_cartesian", "x": 0.3, "y": 0.0, "z": 0.2}
+
+// Home
+{"cmd": "home_rail"}
+{"cmd": "set_arm_home"}
+
+// E-STOP
 {"cmd": "estop"}
-{"cmd": "enable"}
+
+// Gripper
+{"cmd": "gripper", "angle": 90}
+
+// Set feed rate
+{"cmd": "set_speed", "profile": "fast"}  // slow=600, medium=1200, fast=1800
+
+// State broadcast (2Hz from daemon)
+{"type": "state",
+ "grbl_state": "Idle",
+ "rail_mm": 175.0,
+ "joints_deg": [0.0, -30.0, 70.0, 50.0, 0.0, 0.0],
+ "cartesian": {"x": 0.3, "y": 0.0, "z": 0.2}}
 ```
 
 ---
 
 ## Web UI Changes
 
-### New Cartesian Panel
+### Updated Layout
 ```
-┌─────────────────────────────────────────────┐
-│  End Effector Position          Mode: [Joint|Cartesian] │
-│  X: 0.300m   Y: 0.000m   Z: 0.200m          │
-│                                             │
-│  Jog X: [-10cm] [-1cm] [-1mm] [+1mm] [+1cm] [+10cm]  │
-│  Jog Y: ...                                 │
-│  Jog Z: ...                                 │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  [E-STOP]              Armold — Sweep Sync               │
+├──────────────────────────────────────────────────────────┤
+│  Linear Rail: [HOME] ◄━━━━━━━━━━●━━━━━━━━━━► 350mm      │
+│  Position: 175.0mm    [-50] [-10] [+10] [+50]           │
+├──────────────────────────────────────────────────────────┤
+│  Mode: [Joint] [Cartesian]    Speed: [Slow][Med][Fast]  │
+├──────────────────────────────────────────────────────────┤
+│  Joint Jog:                                              │
+│  J0 Base:      [-10°] [-1°] [+1°] [+10°]  current: 0°  │
+│  J1 Shoulder:  [-10°] [-1°] [+1°] [+10°]  current:-30° │
+│  J2 Elbow:     [-10°] [-1°] [+1°] [+10°]  current: 70° │
+│  J3 Wrist P:   [-10°] [-1°] [+1°] [+10°]  current: 50° │
+│  J4 Wrist R:   [-10°] [-1°] [+1°] [+10°]  current: 0°  │
+│  J5 Wrist Y:   [-10°] [-1°] [+1°] [+10°]  current: 0°  │
+├──────────────────────────────────────────────────────────┤
+│  Cartesian Jog (IK mode):                               │
+│  X: [-100mm][-10mm][-1mm][+1mm][+10mm][+100mm]         │
+│  Y: ...                                                  │
+│  Z: ...                                                  │
+│  End Effector: X=300mm Y=0mm Z=200mm                    │
+└──────────────────────────────────────────────────────────┘
 ```
-
-Joint panels remain unchanged. Mode toggle switches between:
-- **Joint mode:** existing jog buttons (degrees)
-- **Cartesian mode:** new XYZ buttons (mm increments → IK → G-code)
 
 ---
 
-## Installation Notes
+## udev Rule (Updated VID/PID)
 
-### grblHAL Flashing (BTT Octopus MAX EZ)
-1. Go to the grblHAL WebBuilder: **https://svn.io-engineering.com:8443/**
-2. Select board: BTT Octopus MAX EZ (or closest STM32H723 variant)
-3. Enable plugins: 6 axes (XYZABC), TMC5160 SPI driver, soft limits, homing, CoolStep
-4. Click "Generate and download firmware" → saves a `.bin` file
-5. Flash via STM32CubeProgrammer (DFU mode: hold BOOT0 button while connecting USB)
-6. After flash, open serial terminal at 115200 baud → confirm `GrblHAL` startup message
-7. Paste `$-settings` block from design.md to configure axes, limits, and Trinamic plugin
-
-### Python Dependencies (Pi)
 ```bash
-pip3 install ikpy pyserial websockets numpy
-```
-
-### udev Rule (Pi) — Persistent Serial Device Name
-Create `/etc/udev/rules.d/99-armold-motion.rules`:
-```
-# BTT Octopus MAX EZ (STM32H723 USB CDC)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="614e", \
+# /etc/udev/rules.d/99-armold-motion.rules
+# BTT Octopus MAX EZ running grblHAL (STM32 CDC, actual VID:PID from lsusb)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", \
   SYMLINK+="armold_motion", MODE="0666", GROUP="dialout"
 ```
-Then reload: `sudo udevadm control --reload-rules && sudo udevadm trigger`
 
-The daemon references `/dev/armold_motion` — if the VID/PID differs for your board,
-run `udevadm info /dev/ttyACM0 | grep -E 'idVendor|idProduct'` after first connect.
+---
+
+## Consolidation Plan (Retire Einsy + RAMPS)
+
+1. Move linear rail motor from Einsy Motor-X to BTT Motor-1 (GRBL X axis)
+2. Move arm motors from RAMPS to BTT Motor-2 through Motor-7 (GRBL Y–U)
+3. Remove Einsy and RAMPS physically
+4. Remove udev rules for `/dev/armold_einsy` and `/dev/armold_ramps`
+5. Stop old multi-board daemon; deploy new single-board GrblBoard daemon
+6. Single service file, single serial port, single board
 
 ---
 
 ## Comparison with Current Architecture
 
-| Aspect | Current (Einsy + custom) | New (BTT + grblHAL) |
-|--------|--------------------------|---------------------|
-| Serial protocol | Custom (fragile) | GRBL (battle-tested) |
-| Firmware | Custom C++ | grblHAL (community) |
-| Trajectory planning | Custom sinusoidal | grblHAL built-in S-curve |
-| Driver config | TMC2130 SPI (1.48A max) | TMC5160 SPI (4.7A max) |
-| Max voltage | 46V | 56V |
-| Axes | 4 (Einsy) + 2 (RAMPS, unwired) | 6 on one board |
-| E-STOP | Serial (slow, fragile) | `!` byte + hardware pin |
-| Homing | Disabled (gearbox false triggers) | StallGuard4 (tunable) |
+| Aspect | Current (Einsy + RAMPS) | New (BTT 7-axis grblHAL) |
+|--------|-------------------------|--------------------------|
+| Boards | 2 (Einsy + RAMPS) | 1 (BTT Octopus MAX EZ) |
+| Serial ports | 2 (/dev/armold_einsy, _ramps) | 1 (/dev/armold_motion) |
+| Firmware | 2 custom (C++, AVR) | 1 community (grblHAL, STM32) |
+| Build tool | PlatformIO (AVR) | PlatformIO (STM32, same toolchain) |
+| Protocol | Custom binary/ASCII | Standard GRBL G-code |
+| Trajectory | Custom sinusoidal ramp | grblHAL S-curve + lookahead |
+| Drivers | TMC2130 (1.48A) + S42C | TMC5160 (4.7A) × 7 |
 | IK | None | ikpy on Pi |
-| Custom code | ~2000 lines | ~300 lines |
-| Maintenance | High | Low |
+| Linear rail | Separate board | Integrated (X axis) |
+| E-STOP | Serial byte + enable pin | `!` byte + hardware pin |
+| Custom code | ~2000 lines firmware + daemon | ~300 lines daemon |
+| Maintenance | High (2 boards, 2 protocols) | Low (1 board, standard protocol) |

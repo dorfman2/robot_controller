@@ -1,115 +1,113 @@
-# BTT Octopus MAX EZ + grblHAL + IK — Tasks
+# BTT Octopus MAX EZ + grblHAL + IK — Tasks (7-Axis)
 
-## Phase 1: Hardware Procurement
-- [ ] Order BTT Octopus MAX EZ V1.0
-- [ ] Order 7× BTT EZ5160 RGB drivers
-- [ ] Order USB-C cable (board to Pi)
-- [ ] Confirm EZ5160 drivers fit EZ sockets on Octopus MAX EZ
+## Phase 1: Hardware Setup
+- [x] Order BTT Octopus MAX EZ V1.0
+- [x] Order 7× BTT EZ5160 RGB drivers
+- [x] Order USB-C cable (board to Pi)
+- [x] Install EZ5160 drivers in EZ sockets
+- [x] Connect board to Pi via USB-C
+- [x] Bridge VUSB jumper for USB-powered DFU flashing
+- [x] Verify board enters DFU mode (BOOT0 + RESET)
+- [x] Flash initial grblHAL firmware via dfu-util (3-axis build, confirmed working)
+- [x] Verify serial port appears: `/dev/ttyACM0` (VID `0483` PID `5740`)
+- [x] Verify grblHAL responds: `GrblHAL 1.1f`, STM32H723@480MHz, Trinamic plugin loaded
 
-## Phase 2: grblHAL Setup
-- [ ] Flash grblHAL via grblHAL WebBuilder (BTT Octopus MAX EZ profile, 6 axes, TMC5160 SPI)
-- [ ] Connect board to Pi via USB-C, verify serial port appears (/dev/ttyACM0 or similar)
-- [ ] Set udev rule for persistent naming: `/dev/armold_motion`
-- [ ] Configure steps/degree: $100-$105 = 230.6
-- [ ] Configure max feed rates and acceleration: $110-$125
-- [ ] Configure joint soft limits: $130-$135
-- [ ] Configure TMC5160 via Trinamic plugin settings
-- [ ] Verify: send `G1 X90 F1800` → joint 0 rotates 90°
-- [ ] Verify: send `G1 X90 Y45 Z30 F1800` → all 3 joints move simultaneously
-- [ ] Test E-STOP: `!` byte stops mid-move instantly
-- [ ] Test GRBL status polling: `?` returns position
+## Phase 2: 7-Axis Firmware Build (Local PlatformIO)
+- [ ] Clone grblHAL STM32H7 driver: `git clone --recursive https://github.com/dresco/STM32H7xx.git`
+- [ ] Add `[env:btt_octopus_max_armold_7axis]` to platformio.ini with `-D N_AXIS=7 -D PWM_SERVO_ENABLE=1 -D SPINDLE0_ENABLE=SPINDLE_NONE` (EC5)
+- [ ] Patch `boards/btt_octopus_max_map.h`: raise motor limit to 7, add M6 (Motor-7: PD3/PD2/PD4/PD7)
+- [ ] Build: `pio run -e btt_octopus_max_armold_7axis` — verify compiles clean
+- [ ] Copy firmware.bin to Pi: `scp .pio/build/.../firmware.bin pi@armold.local:/tmp/firmware.bin`
+- [ ] Put board in DFU mode (BOOT0 + RESET)
+- [ ] Flash: `ssh pi@armold.local "sudo dfu-util -a 0 -s 0x08000000:leave -D /tmp/firmware.bin"`
+- [ ] Verify: `$I` shows `[AXS:7:XYZABCU]` and `[PLUGIN:Trinamic]`
+- [ ] Verify: `[PLUGIN:Bootloader Entry]` present (enables `$DFU` for future flashes without BOOT0)
 
-## Phase 3: IK Setup
-- [ ] Install ikpy: `pip3 install ikpy numpy`
-- [ ] Measure actual arm link lengths (base height, upper arm, forearm, wrist segments)
-- [ ] Create armold.urdf with measured DH parameters
-- [ ] Validate FK: given known joint angles → check end-effector position matches physical measurement
-- [ ] Validate IK: give a reachable target → solve → move arm → confirm position
-- [ ] Test joint limit enforcement in IK solver
-- [ ] Test unreachable target returns None gracefully (no movement, error to client)
+## Phase 3: Configuration + Motor Wiring
+- [ ] Set udev rule for `/dev/armold_motion` (VID `0483`, PID `5740`)
+- [ ] Move linear rail motor from Einsy to BTT Motor-1 (X axis)
+- [ ] Move arm motors from RAMPS to BTT Motor-2 through Motor-7 (Y–U)
+- [ ] Wire 180° gripper servo to FAN4 header (PA1 — AUXOUTPUT0, PWM capable)
+- [ ] Power gripper servo from separate 5V BEC, not board 5V rail (EC10: stall current too high)
+- [ ] Configure steps/unit: `$100=80` (rail mm), `$101-$106=230.6` (arm degrees)
+- [ ] Configure feed rates: `$110=5000` (rail), `$111-$116=1800` (arm)
+- [ ] Configure acceleration: `$120=500` (rail), `$121-$126=900` (arm)
+- [ ] Configure soft limits: `$20=1`, `$130=350`, `$131=360`, `$132=180`, `$133=300`, `$134=240`, `$135=180`, `$136=360`
+- [ ] Configure rotary axes: `$376=126` — required, U/Y/Z won't auto-detect as rotary (EC1)
+- [ ] Configure homing: `$22=1`, `$44=1` (X only), `$45=0`, `$46=0`
+- [ ] Configure TMC5160 current/microsteps/mode via Trinamic plugin settings
+- [ ] Test: `$X` to unlock, `G1 Y90 F1800` → base rotates 90°
+- [ ] Test: `G1 Y90 Z-30 A70 F1800` → 3 arm joints move simultaneously
+- [ ] Test: `G1 X175 F5000` → rail moves to center
+- [ ] Test: `M280 P0 S90` → gripper servo moves to 90°
+- [ ] Test E-STOP: `!` stops mid-move instantly
+- [ ] Test status polling: `?` returns 7-axis MPos
+
+## Phase 4: IK Setup
+- [ ] Install ikpy on Pi: `pip3 install ikpy numpy`
+- [ ] Measure physical arm link lengths (upper arm center-to-center)
+- [ ] Create `armold.urdf` with scaled dimensions from FK simulator
+- [ ] Validate FK: set joints to home [0, -30, 70, 50, 0, 0] → compare tool tip to physical
+- [ ] Validate IK: give reachable target → solve → move arm → confirm position
+- [ ] Test joint limit enforcement in solver
+- [ ] Test unreachable target returns None (no movement, error to client)
 - [ ] Benchmark IK solve time on Pi (target: <50ms)
 
-## Phase 4: armold_controller Refactor
-- [ ] Replace serial_board.py with GrblBoard class (GRBL protocol)
-- [ ] Replace motion_manager.py with MotionManager + IK integration
-- [ ] Add GRBL status polling (2Hz), broadcast position to WebSocket clients
-- [ ] Add E-STOP: sends `!` byte immediately (no lock, no queue)
-- [ ] Add homing command handler
-- [ ] Add speed profile: map Slow/Medium/Max to GRBL feed rates
-- [ ] Add move_cartesian command: IK solve → G-code → send
-- [ ] Update armold.service WorkingDirectory and restart
-- [ ] Run existing unit tests, fix any failures
+## Phase 5: armold_controller Refactor
+- [ ] Replace multi-board serial code with single GrblBoard class
+- [ ] Implement MotionManager with jog_joint, jog_rail, move_cartesian, home_rail, home_arm
+- [ ] Add gripper command handler (M280 pass-through)
+- [ ] Add GRBL status polling (2Hz `?`), broadcast 7-axis position to WebSocket clients
+- [ ] Add E-STOP handler: sends `!` immediately
+- [ ] Add speed profile: map Slow/Medium/Fast to feed rates
+- [ ] Add sequence_to_gcode converter (simulator JSON → G-code with Y-U axes)
+- [ ] Implement startup sequence: unlock → home rail → center → set arm zero → enable soft limits (EC3)
+- [ ] Implement USB disconnect detection and auto-reconnect with motion stop (EC6)
+- [ ] Validate 7-axis MPos length in status parser, log/skip malformed responses (EC8)
+- [ ] After E-STOP, always re-query `?` before allowing new commands (EC7)
+- [ ] Send rail and arm moves as separate G-code by default (EC2 mixed units)
+- [ ] Update config.json: single board, `/dev/armold_motion`, 115200
+- [ ] Update armold.service: remove multi-board references
+- [ ] Remove old Einsy/RAMPS udev rules
+- [ ] Run unit tests, fix failures
 
-## Phase 5: Web UI Update
-- [ ] Add Cartesian position display (XYZ + roll/pitch/yaw from FK)
-- [ ] Add Cartesian jog panel (±1mm, ±10mm, ±100mm per axis)
+## Phase 6: Web UI Update
+- [ ] Rename joint axes in UI to match new mapping (J0–J5 → Y,Z,A,B,C,U)
+- [ ] Add linear rail panel: position display, jog ±10mm/±50mm, home button
+- [ ] Add gripper control: slider (0–180°) or open/close buttons
+- [ ] Add Cartesian jog panel (±1mm, ±10mm, ±100mm per XYZ)
 - [ ] Add mode toggle (Joint / Cartesian)
-- [ ] Update E-STOP to send estop command (maps to GRBL `!`)
-- [ ] Update speed toggle to send set_speed (maps to GRBL feed rate)
-- [ ] Update IK demo to use move_cartesian commands instead of joint targets
+- [ ] Display end-effector position (from FK calculation)
+- [ ] Update E-STOP to send estop command
+- [ ] Update speed toggle
+- [ ] Test full UI workflow: connect → unlock → home rail → set arm home → jog → gripper
 
-## Phase 6: Tuning + Validation
-- [ ] Tune TMC5160 StallGuard per joint (sgt threshold for reliable homing)
-- [ ] Run sensorless homing on J0, J1, J2
-- [ ] Run 1-hour IK demo stress test (no crashes, no position desyncs)
+## Phase 7: Tuning + Validation
+- [ ] Tune TMC5160 StallGuard4 for linear rail (X axis only)
+- [ ] Run sensorless homing on rail: fast approach + slow verify + center at 175mm
+- [ ] Verify arm "set home" works: jog to known pose → `G10 L20 P1 Y0 Z0 A0 B0 C0 U0`
+- [ ] Run 1-hour IK demo stress test (no crashes, no desyncs)
 - [ ] Test USB unplug/replug recovery
 - [ ] Test E-STOP latency (<10ms)
-- [ ] Verify Cartesian accuracy: command position → measure actual → compare
-- [ ] Document final grblHAL $-settings in docs/
+- [ ] Verify Cartesian accuracy: command → measure → compare
+- [ ] Test `$DFU` remote flash workflow (no BOOT0 button)
+- [ ] Document final grblHAL `$$` settings in docs/
 
-## Phase 7: Finalize
-- [ ] Update motion-controller-analysis.md with Option A results
-- [ ] Update steering files with new architecture
+## Phase 8: Simulator Integration (Armold_FK_v1)
+- [ ] Run simulator locally: `npm install && npm run dev` in Armold_FK_v1/
+- [ ] Validate FK output matches ikpy at home pose [0, -30, 70, 50, 0, 0]
+- [ ] Calibrate URDF link lengths from physical measurement (SCALE factor)
+- [ ] Create `scripts/sequence_to_gcode.py` (converts simulator JSON → 7-axis G-code)
+- [ ] Export demo sequence from simulator, convert, verify G-code output
+- [ ] Test end-to-end: sequence JSON → G-code → armold_controller → physical arm
+- [ ] Add "Send to Arm" button in simulator (POST sequence to Pi WebSocket)
+- [ ] Add live position feedback: daemon → WebSocket → simulator 3D display
+- [ ] Build simulator for production: `npm run build`
+- [ ] Deploy dist/ to Pi, serve at `/simulator/` from armold_controller
+
+## Phase 9: Finalize
+- [ ] Remove Einsy + RAMPS hardware physically
+- [ ] Update docs/btt-octopus-grblhal-flash.md with 7-axis local build instructions
+- [ ] Update steering files with final architecture
+- [ ] Update README with new hardware stack
 - [ ] Commit all changes to main
-- [ ] Update README with new hardware and stack
-
-## Phase 8: Simulator Integration (Armold_FK_v1 as UI Frontend)
-
-The FK simulator at https://github.com/LeeWhite187/Armold_FK_v1 has a 3D arm model,
-a step sequencer with pose interpolation, pick-and-place demo, and JSON export — making
-it a ready-made planning UI for the physical arm. This phase integrates it.
-
-### 8a: URDF Validation Against Simulator
-- [ ] Run `npm install && npm run dev` in `Armold_FK_v1/` to launch simulator locally
-- [ ] Set arm to home pose [0, -30, 70, 50, 0, 0] in simulator — note tool tip XYZ in browser console (`window.__armold.robot.getTipWorld()`)
-- [ ] Compute FK via ikpy at the same angles — compare tool tip XYZ to simulator output
-- [ ] Acceptable tolerance: <5% difference before SCALE calibration, <1% after physical measurement
-- [ ] If FK matches: URDF joint axes are correct. If not: check axis direction signs in armold.urdf
-
-### 8b: Link Length Calibration
-- [ ] Measure physical upper arm length (shoulder pivot to elbow pivot, center-to-center) in mm
-- [ ] Compute `SCALE = measured_mm / 150.0` (simulator DIMS.upperArm = 1.5, URDF units = meters)
-- [ ] Update all link lengths in armold.urdf by multiplying simulator DIMS by SCALE:
-  - baseHeight: `0.35 × SCALE`
-  - shoulderHeight: `0.55 × SCALE`
-  - upperArm: `1.50 × SCALE`
-  - foreArm: `1.25 × SCALE`
-  - wristLen: `0.35 × SCALE`
-  - toolLen: `0.45 × SCALE`
-- [ ] Re-run FK validation — confirm <1% error against physical measurement
-
-### 8c: Sequence Export → G-code Pipeline
-- [ ] Create `scripts/sequence_to_gcode.py` using the converter in design.md
-- [ ] Export the simulator's built-in demo pick-and-place sequence as JSON (`File → Export JSON`)
-- [ ] Run: `python3 scripts/sequence_to_gcode.py demo.json` → inspect generated G-code
-- [ ] Verify home step produces `G1 X0.00 Y-30.00 Z70.00 A50.00 B0.00 C0.00 F1800`
-- [ ] Test end-to-end: load generated G-code into armold_controller → run on physical arm
-
-### 8d: Live Simulator → Physical Arm Bridge (Optional)
-- [ ] Add "Send to Arm" button to simulator UI that POSTs the current sequence JSON to Pi WebSocket
-- [ ] Pi daemon receives sequence JSON, calls `sequence_to_gcode()`, queues moves to grblHAL
-- [ ] Add real-time position feedback: daemon broadcasts joint angles → simulator updates 3D display
-  - WebSocket message: `{"type": "state", "joints": [0, -30, 70, 50, 0, 0]}`
-  - Simulator: `window.__armold.robot.setAngles(angles.map(d => d * Math.PI/180))`
-- [ ] This makes the simulator a live mirror of the physical arm position
-
-### 8e: Simulator as Default Planning UI
-- [ ] Build simulator for production: `npm run build` in `Armold_FK_v1/`
-- [ ] Copy `dist/` output to Pi: `rsync -az Armold_FK_v1/dist/ pi@armold.local:~/armold_firmware/web/simulator/`
-- [ ] Serve from armold_controller's web server at `/simulator/`
-- [ ] Update web/index.html to link to simulator UI from main control panel
-
-## Future (Option B Migration — Mesa + LinuxCNC)
-- [ ] When closed-loop encoders are added, evaluate Mesa 7i92 + 7i76 + 7i78
-- [ ] Your 6× StepperOnline TE drivers connect directly to Mesa STEP/DIR outputs
-- [ ] IK code (ikpy + URDF) stays the same — only hardware interface changes
