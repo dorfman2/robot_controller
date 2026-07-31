@@ -78,6 +78,10 @@ inclusion: always
 - **Klipper serial ID**: `usb-Klipper_stm32h723xx_380009001151313531383332-if00`
 - **Klipper config path mismatch**: klippy looks for `/home/pi/printer.cfg` but KIAUH installs to `~/printer_data/config/printer.cfg` — fixed with symlink
 - **Klipper `flash_usb.py`**: alternative to Katapult for future updates — pulse DTR at 1200 baud to enter bootloader, then dfu-util. Requires `CONFIG_HAVE_BOOTLOADER_REQUEST=y` in Klipper build (already set).
+- **Klipper Phase 4 partial success**: all 7 motors moved via `MANUAL_STEPPER MOVE=` commands (including Motor-7/J5 which failed in grblHAL!) — TMC5160 SPI working in Klipper
+- **Motor overheating at idle**: 1.2A hold current too high for NEMA 17. Fixed with `hold_current: 0.300` (J3 at 0.750 due to load). Run current 0.800A for most, 1.200A for J3 only.
+- **Klipper GCODE_AXIS limitation**: X/Y/Z axes can't be registered (reserved for kinematics). Only A/B/C/U work. Once registered, `MANUAL_STEPPER MOVE=` fails — must use `G1` instead. Two modes are mutually exclusive.
+- **Klipper `MANUAL_STEPPER` SPEED parameter**: units are mm/s (or deg/s for rotary), not mm/min like G-code F values
 
 ## System Architecture
 

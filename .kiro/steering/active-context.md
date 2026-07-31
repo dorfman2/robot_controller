@@ -5,41 +5,42 @@ inclusion: always
 # Active Context - Current Task State
 
 ## Current Focus
-BTT Octopus MAX EZ grblHAL 7-axis spec complete (requirements, design, tasks rewritten). Phase 1 (hardware setup) done — board flashed with 3-axis grblHAL, verified running. Phase 2 next: local PlatformIO build of 7-axis firmware from dresco/STM32H7xx. OAK-1 Lite vision pick-and-place spec also created.
+Klipper migration Phase 4 (motor testing) in progress. All 7 motors confirmed moving in Klipper — including Motor-7 (J5) which failed in grblHAL. TMC5160 SPI also working. Hit overheating issue due to high hold current — fixed in printer.cfg. Waiting for motors to cool before continuing.
 
 ## Recent Changes
-- Rewrote `.kiro/specs/btt-grblhal-ik/` for 7-axis (XYZABCU) mapping
-  - X = linear rail (80 steps/mm, 350mm, GT2 20T)
-  - Y–U = arm joints J0–J5 (230.6 steps/°, 25.95:1 gearbox)
-  - Gripper: 180° servo via M280 P0 S<angle> (PWM_SERVO_ENABLE)
-- Local PlatformIO build replaces WebBuilder (dresco/STM32H7xx repo)
-- Board map patch needed: Motor-7 (PD3/PD2/PD4/PD7) for U axis
-- Build flags: `-D N_AXIS=7 -D PWM_SERVO_ENABLE=1 -D SPINDLE0_ENABLE=SPINDLE_NONE`
-- Documented 10 edge cases (EC1–EC10) with mitigations
-- `$DFU` command available for remote flash (no BOOT0 button needed)
-- StallGuard only on X (linear rail); arm uses manual set-zero (G10 L20)
-- SPI confirmed as correct interface for TMC5160/EZ5160 (UART not beneficial)
-- Created OAK-1 Lite vision spec: `.kiro/specs/oak1-vision-pick/`
-- All committed to `feature/btt-grblhal-ik` branch
+- Flashed Klipper MCU firmware to BTT Octopus MAX EZ (v0.13.0-718, STM32H723@520MHz)
+- Katapult bootloader attempt failed (USB enumeration issue on H723 — deferred)
+- Klipper flashed directly to 0x08000000 (no bootloader offset)
+- Klipper + Moonraker installed on Pi via KIAUH, services running
+- printer.cfg created with 7 manual steppers + TMC5160 SPI + servo gripper
+- armold_controller refactored with KlipperBoard class (Moonraker API)
+- All 7 motors tested and confirmed moving (including Motor-7!)
+- Motor current tuned: run=0.800A (J3=1.200A), hold=0.300A (J3=0.750A)
+- Committed to `feature/btt-grblhal-ik` branch
 
 ## Upcoming Changes
-- Phase 2: Clone dresco/STM32H7xx, add 7-axis env, patch board map, build, flash
-- Phase 3: Wire motors to BTT, configure grblHAL settings ($100-$136, $376, TMC)
-- Phase 4: IK setup (ikpy, URDF, calibration)
-- Phase 5: Refactor armold_controller to single GrblBoard class
-- Future: OAK-1 Lite vision integration (after grblHAL stack is stable)
+- Continue Phase 4: re-test motors with reduced current (after cooldown)
+- Test coordinated motion (GCODE_AXIS for A/B/C/U, MANUAL_STEPPER for X/Y/Z)
+- Test gripper servo
+- Test TMC5160 status: `DUMP_TMC`
+- Phase 6: StallGuard homing on rail, soft limits in daemon
+- Future: OAK-1 Lite vision integration (after Klipper stack is stable)
 
 ## Active Decisions and Considerations
 - Project name: "Armold"
 - Software name: "Sweep Sync"
-- **7-axis architecture**: Pi → BTT Octopus MAX EZ (grblHAL) → 7 EZ5160 → 7 motors
+- **Klipper over grblHAL**: grblHAL Motor-7/8 pins didn't produce physical movement; Klipper works on all slots
+- **7-axis architecture**: Pi (klippy + armold_controller) → BTT Octopus MAX EZ (Klipper MCU) → 7 EZ5160 → 7 motors
 - **Axis mapping**: X=rail, Y=J0 Base, Z=J1 Shoulder, A=J2 Elbow, B=J3 Wrist Pitch, C=J4 Wrist Roll, U=J5 Wrist Yaw
-- **Gripper**: 180° servo on FAN4 (PA1/AUXOUTPUT0), powered by separate 5V BEC
-- **$376=126**: Y/Z/A/B/C/U all flagged rotary (U and Y/Z won't auto-detect)
-- **StallGuard**: only X axis (rail) — arm joints home via manual set-zero
-- **Flash method**: `$DFU` for routine updates; BOOT0 only for brick recovery
-- **SPI over UART** for TMC5160: pre-routed hardware SPI4, tested path, no bus contention (SD card unused)
+- **Gripper**: 180° 9g metal gear servo on PA1 (FAN4), powered by separate 5V BEC
+- **Motor current**: run=0.800A all except J3=1.200A; hold=0.300A all except J3=0.750A
+- **StallGuard**: only X axis (rail) — arm joints home via SET_POSITION=0
+- **Flash method**: DFU (Katapult deferred due to H723 USB issue); Klipper's flash_usb.py for future updates
+- **SPI for TMC5160**: confirmed working in Klipper (failed in grblHAL on this board)
 - **Consolidation**: Einsy + RAMPS retired, single board, single serial port
-- **VID:PID**: 0483:5740 (STM Virtual COM Port) — udev rule for /dev/armold_motion
+- **VID:PID**: 1d50:614e (OpenMoko/Klipper)
+- **Klipper serial ID**: usb-Klipper_stm32h723xx_380009001151313531383332-if00
+- **Moonraker API**: localhost:7125 for all armold_controller communication
+- **GCODE_AXIS**: only A/B/C/U (X/Y/Z reserved by Klipper). Coordinated motion via G1 A.. B.. C.. U..
 - **Deploy key**: `~/.ssh/armold_deploy` (ed25519, no passphrase)
 - **OAK-1 Lite**: monocular vision, eye-to-hand fixed mount, YOLOv8n on Myriad X, known desk plane for depth
