@@ -89,9 +89,14 @@ EZ5160 × 7 → NEMA 17 × 7 → Joints + Rail
 - No physical limit switches on arm joints
 
 ### R7: Gripper Servo
-- Klipper `[servo gripper]` section with pin PA1
+- Type: 9g metal gear servo, 180° range, 5V operating voltage, 3-wire (signal/VCC/GND)
+- Klipper `[servo gripper]` section with pin PA1 (FAN4 header on Octopus MAX EZ)
+- Signal wire: PA1 (3.3V logic from MCU, within servo input spec)
+- Power: separate 5V BEC from 24V rail (board 5V can't supply stall current ~1A)
+- GND: shared between BEC and board (common ground)
 - Commands: `SET_SERVO SERVO=gripper ANGLE=90`
 - Mapped to WebSocket command `{"cmd": "gripper", "angle": 90}`
+- S0 = closed, S180 = fully open (calibrate per physical gripper geometry)
 
 ### R8: Web UI (Keep Existing)
 - armold_controller continues to serve the web UI on port 9090

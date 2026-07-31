@@ -31,7 +31,7 @@
 - [ ] Configure stepper_c (Motor-6, J4): step_pin PG15, dir_pin PB3, enable_pin !PD5, rotation_distance=13.87
 - [ ] Configure stepper_u (Motor-7, J5): step_pin PD3, dir_pin PD2, enable_pin !PD4, rotation_distance=360 (direct drive)
 - [ ] Configure TMC5160 SPI for all 7 steppers (cs_pins, spi_bus: spi4, run_current: 1.2)
-- [ ] Configure `[servo gripper]` on pin PA1
+- [ ] Configure `[servo gripper]` on pin PA1 (signal only — 5V power from separate BEC, shared GND)
 - [ ] Configure `[virtual_sdcard]` path
 - [ ] Add `REGISTER_AXES` startup macro (GCODE_AXIS registration for coordinated motion — EC1)
 - [ ] Add `SET_ARM_HOME` macro (sets all stepper positions to zero)

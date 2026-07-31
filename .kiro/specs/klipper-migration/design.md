@@ -246,12 +246,17 @@ run_current: 1.200
 stealthchop_threshold: 0
 
 # ============ GRIPPER SERVO ============
+# 9g metal gear servo, 180°, 5V
+# Signal wire → PA1 (FAN4 header signal pin)
+# Power → separate 5V BEC (NOT board 5V — stall current too high)
+# GND → shared with board GND
 
 [servo gripper]
 pin: PA1
 maximum_servo_angle: 180
 minimum_pulse_width: 0.0005
 maximum_pulse_width: 0.0025
+# 0.5ms = 0°, 2.5ms = 180° (standard servo timing)
 
 # ============ MISC ============
 
