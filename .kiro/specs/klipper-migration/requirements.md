@@ -119,3 +119,80 @@ EZ5160 × 7 → NEMA 17 × 7 → Joints + Rail
 - None — same board, same wiring, same drivers
 - Just reflash MCU firmware from grblHAL to Klipper
 - J5 motor moves BACK to Motor-7 slot (PD3/PD2/PD4) — Klipper proven to work there
+
+## Jumper Configuration — No Changes Required
+
+| Jumper | Current Setting | Klipper Needs | Change? |
+|--------|----------------|---------------|---------|
+| VUSB | Bridged | Same (DFU flash) | No |
+| Driver voltage | VBB (24V) | Same | No |
+| DIAG Motor-1 | Installed | Same (StallGuard on X) | No |
+| DIAG Motor-2–7 | Not installed | Same | No |
+| E-STOP (PF13→GND) | Bridged | Optional (Klipper doesn't use this pin by default) | No |
+| SPI/UART | None | Same (firmware-controlled) | No |
+
+## Edge Cases and Mitigations
+
+### EC1: Coordinated Multi-Axis Motion
+`MANUAL_STEPPER ... MOVE=` commands execute sequentially (one axis at a time). A robot arm
+NEEDS coordinated motion (move J0 + J1 + J2 simultaneously).
+**Mitigation**: Klipper added `GCODE_AXIS` registration in May 2025. After
+`MANUAL_STEPPER STEPPER=stepper_y GCODE_AXIS=Y`, standard `G1 Y90 Z30 A45` moves all
+axes simultaneously with full motion planning. Use the Multi-Axis Framework (MAF) or
+native axis registration at startup.
+
+### EC2: DFU Flash Address with 128K Bootloader
+With `128KiB bootloader` in Klipper menuconfig, firmware expects to live at `0x08020000`.
+Flashing to wrong address = board won't boot.
+**Mitigation**: Either:
+- Flash to `0x08020000`: `dfu-util -a 0 -s 0x08020000:leave -D out/klipper.bin`
+- Or compile without bootloader offset and flash to `0x08000000`
+The BTT SD card bootloader lives in the first 128K — preserve it if you want SD card updates as backup.
+
+### EC3: Klipper + armold_controller Port Conflict
+Both services could try to own the serial port simultaneously.
+**Mitigation**: armold_controller NEVER opens the serial port directly. It talks exclusively
+to Moonraker (HTTP localhost:7125). Only klippy owns the MCU serial connection.
+
+### EC4: Moonraker Required
+Without Moonraker, armold_controller has no API to send commands.
+**Mitigation**: Install Moonraker alongside Klipper. It wraps klippy's internal API into
+HTTP/WebSocket endpoints. This is a hard dependency.
+
+### EC5: rotation_distance for Degree-Based Axes
+Klipper uses `rotation_distance` (distance per motor revolution), not steps/unit.
+**Mitigation**:
+- Geared joints: `rotation_distance = 360 / 25.95 = 13.87` (degrees per motor rev after gearbox)
+- Direct drive (J5): `rotation_distance = 360` (1 motor rev = 360°)
+- Rail (X): `rotation_distance = 40` (mm per rev, GT2 2mm pitch × 20 teeth)
+
+### EC6: SPI4 Bus Shared with SD Card
+TMC5160 SPI and the physical SD card slot share SPI4.
+**Mitigation**: Don't use physical SD card. Klipper's `[virtual_sdcard]` reads from Pi
+filesystem. No bus contention since SD card CS stays deasserted.
+
+### EC7: Motor-7 Might Work in Klipper
+grblHAL failed on Motor-7, but Klipper's MCU firmware is fundamentally different (receives
+pre-computed step schedules, fires pins at exact timing). The pin definitions are in the
+official Klipper config for this board.
+**Mitigation**: Test Motor-7 first after flash. If it still fails (hardware issue), fall
+back to Motor-8 (PA10/PA9/PA15) which is also in the reference config.
+
+### EC8: No Remote DFU After Klipper Flash
+grblHAL's `$DFU` command was a plugin — gone after switching to Klipper. Future reflashes
+require physical BOOT0 button press.
+**Mitigation**: Keep BOOT0 accessible. Klipper has `make flash FLASH_DEVICE=0483:df11` but
+still needs the board in DFU mode first. For routine Klipper updates, use
+`make flash FLASH_DEVICE=/dev/serial/by-id/usb-Klipper...` (USB flash without DFU).
+
+### EC9: Klipper Version Requirement
+`GCODE_AXIS` for manual_stepper was added May 2025. Older versions lack coordinated motion.
+**Mitigation**: Install latest Klipper from git main branch. KIAUH pulls latest by default.
+Verify after install: `MANUAL_STEPPER STEPPER=stepper_y GCODE_AXIS=Y` must not error.
+
+### EC10: E-STOP Latency via Moonraker
+Path: armold_controller → HTTP POST → Moonraker → klippy → MCU. More hops than grblHAL's
+single `!` byte over direct serial.
+**Mitigation**: Still < 50ms total (all localhost). For time-critical safety, wire a physical
+E-STOP button directly to an MCU input pin (Klipper handles it in firmware). Or write to
+klippy's Unix socket (`/tmp/printer`) for lower latency than HTTP.

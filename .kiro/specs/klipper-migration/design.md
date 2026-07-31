@@ -305,7 +305,47 @@ gcode:
 1. Install Klipper + Moonraker on Pi (alongside armold_controller)
 2. Compile & flash Klipper MCU firmware to BTT board (DFU)
 3. Create printer.cfg with manual_stepper definitions
-4. Move J5 back to Motor-7 slot
-5. Test all 7 motors via Moonraker API
-6. Refactor armold_controller: GrblBoard → KlipperBoard
-7. Web UI unchanged (commands route through Moonraker instead of direct serial)
+4. Register G-code axes at startup for coordinated motion (MAF / GCODE_AXIS)
+5. Move J5 back to Motor-7 slot
+6. Test all 7 motors via Moonraker API
+7. Refactor armold_controller: GrblBoard → KlipperBoard
+8. Web UI unchanged (commands route through Moonraker instead of direct serial)
+
+---
+
+## Coordinated Multi-Axis Motion (Critical)
+
+Plain `MANUAL_STEPPER` commands move one axis at a time. For a robot arm, we need
+simultaneous coordinated motion. Klipper (May 2025+) supports this via `GCODE_AXIS`:
+
+```ini
+# In printer.cfg or startup macro — register axes for G-code control
+[gcode_macro REGISTER_AXES]
+description: Register manual steppers as G-code axes for coordinated motion
+gcode:
+  MANUAL_STEPPER STEPPER=stepper_x GCODE_AXIS=X
+  MANUAL_STEPPER STEPPER=stepper_y GCODE_AXIS=Y
+  MANUAL_STEPPER STEPPER=stepper_z GCODE_AXIS=Z
+  MANUAL_STEPPER STEPPER=stepper_a GCODE_AXIS=A
+  MANUAL_STEPPER STEPPER=stepper_b GCODE_AXIS=B
+  MANUAL_STEPPER STEPPER=stepper_c GCODE_AXIS=C
+  MANUAL_STEPPER STEPPER=stepper_u GCODE_AXIS=U
+```
+
+After running `REGISTER_AXES`, standard G-code works:
+
+```gcode
+; Coordinated move — all joints move simultaneously
+G1 Y90 Z-30 A70 B50 F1800
+
+; Rail + arm simultaneous
+G1 X175 Y45 F1800
+
+; This is identical to how grblHAL worked — the armold_controller code stays the same!
+```
+
+This means the axis letter mapping and G-code generation in armold_controller is
+**unchanged from the grblHAL design**:
+- `G1 Y<deg> Z<deg> A<deg> B<deg> C<deg> U<deg> F<rate>` for arm joints
+- `G1 X<mm> F<rate>` for linear rail
+- `SET_SERVO SERVO=gripper ANGLE=<0-180>` for gripper (replaces `M280 P0 S<angle>`)
