@@ -73,6 +73,11 @@ inclusion: always
 - **TMC5160 on BTT Octopus MAX: SPI (not UART)** — pre-routed hardware SPI4, each driver has CS pin on GPIO G14-G9+D7
 - **OAK-1 Lite**: monocular 13MP (IMX214), Myriad X VPU, no stereo depth, USB-C, 2.5W, auto-focus
 - **DepthAI Python SDK**: `pip3 install depthai` — runs on Pi 4, controls OAK pipeline
+- **Katapult bootloader on STM32H723**: USB enumeration fails after flash — board doesn't show up. Likely CONFIG issue with USB HS-in-FS mode on H723. Katapult compiled and flashed but jumped to empty 0x08020000 and crashed. Double-click reset didn't recover. Workaround: flash Klipper directly to 0x08000000 without Katapult. Revisit later with correct H723 USB config.
+- **Klipper MCU on BTT Octopus MAX EZ**: must use `CONFIG_CLOCK_FREQ=520000000` (not 400MHz). Flash size is `0x40000`. `CONFIG_STM32_FLASH_START_0000` for no bootloader. USB enumerates as VID `1d50` PID `614e`.
+- **Klipper serial ID**: `usb-Klipper_stm32h723xx_380009001151313531383332-if00`
+- **Klipper config path mismatch**: klippy looks for `/home/pi/printer.cfg` but KIAUH installs to `~/printer_data/config/printer.cfg` — fixed with symlink
+- **Klipper `flash_usb.py`**: alternative to Katapult for future updates — pulse DTR at 1200 baud to enter bootloader, then dfu-util. Requires `CONFIG_HAVE_BOOTLOADER_REQUEST=y` in Klipper build (already set).
 
 ## System Architecture
 
