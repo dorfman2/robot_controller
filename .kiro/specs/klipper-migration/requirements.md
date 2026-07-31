@@ -178,12 +178,13 @@ official Klipper config for this board.
 **Mitigation**: Test Motor-7 first after flash. If it still fails (hardware issue), fall
 back to Motor-8 (PA10/PA9/PA15) which is also in the reference config.
 
-### EC8: No Remote DFU After Klipper Flash
-grblHAL's `$DFU` command was a plugin — gone after switching to Klipper. Future reflashes
-require physical BOOT0 button press.
-**Mitigation**: Keep BOOT0 accessible. Klipper has `make flash FLASH_DEVICE=0483:df11` but
-still needs the board in DFU mode first. For routine Klipper updates, use
-`make flash FLASH_DEVICE=/dev/serial/by-id/usb-Klipper...` (USB flash without DFU).
+### EC8: Remote Firmware Updates (Katapult Bootloader)
+grblHAL's `$DFU` command is gone after switching. With Katapult installed as a persistent
+bootloader at `0x08000000`, all future Klipper updates are fully automated:
+`python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-Klipper... -f ~/klipper/out/klipper.bin`
+Klipper tells MCU to reboot into Katapult, Katapult accepts new firmware over USB, MCU reboots
+into new Klipper. No button press, no DFU mode, no USB re-enumeration.
+**BOOT0 button only needed ONCE** (initial Katapult flash). Keep accessible for brick recovery.
 
 ### EC9: Klipper Version Requirement
 `GCODE_AXIS` for manual_stepper was added May 2025. Older versions lack coordinated motion.

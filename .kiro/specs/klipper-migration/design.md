@@ -303,13 +303,66 @@ gcode:
 ## Migration Steps Summary
 
 1. Install Klipper + Moonraker on Pi (alongside armold_controller)
-2. Compile & flash Klipper MCU firmware to BTT board (DFU)
-3. Create printer.cfg with manual_stepper definitions
-4. Register G-code axes at startup for coordinated motion (MAF / GCODE_AXIS)
-5. Move J5 back to Motor-7 slot
-6. Test all 7 motors via Moonraker API
-7. Refactor armold_controller: GrblBoard → KlipperBoard
-8. Web UI unchanged (commands route through Moonraker instead of direct serial)
+2. Build & flash Katapult bootloader via DFU (BOOT0 — **last time ever**)
+3. Flash Klipper MCU via Katapult (no button needed)
+4. Create printer.cfg with manual_stepper definitions
+5. Register G-code axes at startup for coordinated motion (MAF / GCODE_AXIS)
+6. Move J5 back to Motor-7 slot
+7. Test all 7 motors via Moonraker API
+8. Refactor armold_controller: GrblBoard → KlipperBoard
+9. Web UI unchanged (commands route through Moonraker instead of direct serial)
+
+---
+
+## Flash Workflow (Katapult + Klipper)
+
+### Initial Setup (one-time, requires BOOT0 button)
+```bash
+# 1. Build Katapult bootloader
+cd ~/katapult
+make menuconfig
+# Select: STM32H723, 128KiB offset, 25MHz crystal, USB (PA11/PA12)
+# Enable: "Support bootloader entry on rapid double click of reset button"
+make
+
+# 2. Enter DFU (BOOT0 + RESET) — LAST TIME EVER
+sudo dfu-util -a 0 -s 0x08000000:leave -D out/katapult.bin
+
+# 3. Build Klipper
+cd ~/klipper
+make menuconfig
+# Select: STM32H723, 128KiB bootloader, 25MHz crystal, USB (PA11/PA12)
+make
+
+# 4. Flash Klipper via Katapult (no button!)
+python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-katapult* -f ~/klipper/out/klipper.bin
+```
+
+### Future Updates (fully automated, no physical access needed)
+```bash
+# Rebuild Klipper with changes
+cd ~/klipper && make
+
+# Flash — Klipper reboots into Katapult, firmware uploads, MCU reboots
+python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-Klipper* -f ~/klipper/out/klipper.bin
+
+# Or use Klipper's built-in DTR method:
+cd ~/klipper/scripts
+python3 -c 'import flash_usb as u; u.enter_bootloader("/dev/serial/by-id/usb-Klipper...")'
+# Board enters Katapult/DFU, then flash via dfu-util or flashtool
+```
+
+### Memory Layout
+```
+0x08000000 ┌──────────────────┐
+           │  Katapult (16KB) │ ← Persistent bootloader, survives Klipper updates
+           │  (bootloader)    │
+0x08020000 ├──────────────────┤
+           │  Klipper MCU     │ ← Application firmware (replaceable without button)
+           │  (firmware)      │
+           │                  │
+0x08080000 └──────────────────┘
+```
 
 ---
 

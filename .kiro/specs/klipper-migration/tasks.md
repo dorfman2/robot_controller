@@ -1,19 +1,25 @@
 # Klipper Migration — Tasks
 
 ## Phase 1: Klipper Host Install (Pi)
-- [ ] Install Klipper via KIAUH (Klipper Installation And Update Helper): `git clone https://github.com/dw-0/kiauh.git && ./kiauh/kiauh.sh`
-- [ ] Install Klipper (klippy service)
-- [ ] Install Moonraker (API server)
-- [ ] Skip Mainsail/Fluidd (we have our own web UI)
-- [ ] Verify klippy and moonraker systemd services running
+- [x] Install Klipper via KIAUH (Klipper Installation And Update Helper): `git clone https://github.com/dw-0/kiauh.git && ./kiauh/kiauh.sh`
+- [x] Install Klipper (klippy service)
+- [x] Install Moonraker (API server)
+- [x] Skip Mainsail/Fluidd (we have our own web UI)
+- [x] Verify klippy and moonraker systemd services running
 
-## Phase 2: Klipper MCU Firmware (Flash Board)
+## Phase 2: Katapult Bootloader + Klipper MCU Firmware (Flash Board)
+- [ ] Clone Katapult: `git clone https://github.com/Arksine/katapult.git ~/katapult`
+- [ ] Configure Katapult: `cd ~/katapult && make menuconfig` (STM32H723, 128KiB offset, 25MHz, USB on PA11/PA12, "Support bootloader entry on rapid double click of reset button")
+- [ ] Build Katapult: `make`
+- [ ] Put board in DFU mode (BOOT0 + RESET) — **LAST TIME you'll need the button**
+- [ ] Flash Katapult to 0x08000000: `sudo dfu-util -a 0 -s 0x08000000:leave -D out/katapult.bin`
+- [ ] Verify Katapult running: `ls /dev/serial/by-id/usb-katapult*` (LED should blink)
 - [ ] Compile Klipper MCU firmware: `cd ~/klipper && make menuconfig` (STM32H723, 128KiB bootloader, 25MHz, USB PA11/PA12)
-- [ ] Run `make` to build `klipper.bin`
-- [ ] Put board in DFU mode (BOOT0 + RESET — grblHAL `$DFU` won't work after first flash)
-- [ ] Flash to correct address: `dfu-util -a 0 -s 0x08020000:leave -D out/klipper.bin` (EC2: 128K offset)
-- [ ] Verify MCU shows up: `ls /dev/serial/by-id/usb-Klipper*`
+- [ ] Build Klipper: `make`
+- [ ] Flash Klipper via Katapult (no button!): `python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-katapult* -f ~/klipper/out/klipper.bin`
+- [ ] Verify Klipper MCU shows up: `ls /dev/serial/by-id/usb-Klipper*`
 - [ ] Record serial ID for printer.cfg
+- [ ] Test future update workflow: `python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-Klipper* -f ~/klipper/out/klipper.bin` (should work without any button press)
 
 ## Phase 3: Printer Configuration
 - [ ] Create `~/printer_data/config/printer.cfg` with 7 manual steppers
