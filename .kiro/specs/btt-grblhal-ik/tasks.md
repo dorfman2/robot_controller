@@ -13,18 +13,18 @@
 - [x] Verify grblHAL responds: `GrblHAL 1.1f`, STM32H723@480MHz, Trinamic plugin loaded
 
 ## Phase 2: 7-Axis Firmware Build (Local PlatformIO)
-- [ ] Clone grblHAL STM32H7 driver: `git clone --recursive https://github.com/dresco/STM32H7xx.git`
-- [ ] Add `[env:btt_octopus_max_armold_7axis]` to platformio.ini with `-D N_AXIS=7 -D PWM_SERVO_ENABLE=1 -D SPINDLE0_ENABLE=SPINDLE_NONE` (EC5)
-- [ ] Patch `boards/btt_octopus_max_map.h`: raise motor limit to 7, add M6 (Motor-7: PD3/PD2/PD4/PD7)
-- [ ] Build: `pio run -e btt_octopus_max_armold_7axis` — verify compiles clean
-- [ ] Copy firmware.bin to Pi: `scp .pio/build/.../firmware.bin pi@armold.local:/tmp/firmware.bin`
-- [ ] Put board in DFU mode (BOOT0 + RESET)
-- [ ] Flash: `ssh pi@armold.local "sudo dfu-util -a 0 -s 0x08000000:leave -D /tmp/firmware.bin"`
-- [ ] Verify: `$I` shows `[AXS:7:XYZABCU]` and `[PLUGIN:Trinamic]`
-- [ ] Verify: `[PLUGIN:Bootloader Entry]` present (enables `$DFU` for future flashes without BOOT0)
+- [x] Clone grblHAL STM32H7 driver: `git clone --recursive https://github.com/dresco/STM32H7xx.git`
+- [x] Add `[env:btt_octopus_max_armold_7axis]` to platformio.ini with `-D N_AXIS=7 -D PWM_SERVO_ENABLE=1 -D SPINDLE0_ENABLE=SPINDLE_NONE` (EC5)
+- [x] Patch `boards/btt_octopus_max_map.h`: raise motor limit to 7, add M6 (Motor-7: PD3/PD2/PD4/PD7)
+- [x] Build: `pio run -e btt_octopus_max_armold_7axis` — verify compiles clean
+- [x] Copy firmware.bin to Pi: `scp .pio/build/.../firmware.bin pi@armold.local:/tmp/firmware.bin`
+- [x] Put board in DFU mode (BOOT0 + RESET)
+- [x] Flash: `ssh pi@armold.local "sudo dfu-util -a 0 -s 0x08000000:leave -D /tmp/firmware.bin"`
+- [x] Verify: `$I` shows `[AXS:7:XYZABCU]` and `[PLUGIN:Trinamic]`
+- [x] Verify: `[PLUGIN:Bootloader Entry]` present (enables `$DFU` for future flashes without BOOT0)
 
 ## Phase 3: Configuration + Motor Wiring
-- [ ] Set udev rule for `/dev/armold_motion` (VID `0483`, PID `5740`)
+- [x] Set udev rule for `/dev/armold_motion` (VID `0483`, PID `5740`)
 - [ ] Move linear rail motor from Einsy to BTT Motor-1 (X axis)
 - [ ] Move arm motors from RAMPS to BTT Motor-2 through Motor-7 (Y–U)
 - [ ] Wire 180° gripper servo to FAN4 header (PA1 — AUXOUTPUT0, PWM capable)

@@ -1,0 +1,18 @@
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+
+# Third-party libraries that ship without type stubs or a py.typed marker.
+# These are runtime dependencies with no static type information available,
+# so we suppress "missing import" noise rather than annotating around them.
+[[tool.mypy.overrides]]
+module = [
+    "roboticstoolbox.*",
+    "spatialmath.*",
+    "aiohttp.*",
+    "websockets.*",
+]
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"

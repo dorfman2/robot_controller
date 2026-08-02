@@ -319,54 +319,47 @@ gcode:
 
 ---
 
-## Flash Workflow (Katapult + Klipper)
+## Flash Workflow (as-built, 2026-07-31)
 
-### Initial Setup (one-time, requires BOOT0 button)
+> The original plan was buttonless updates via Katapult's `flashtool.py`. That path is broken on
+> this Katapult build for the H723 (flash-write faults — see requirements EC11 / issue #128).
+> **Sanctioned workflow: ROM DFU + `dfu-util`.** Katapult is installed at `0x08000000` and used
+> only as the boot/jump stage (that works reliably).
+
+### Initial Setup (one-time)
 ```bash
-# 1. Build Katapult bootloader
-cd ~/katapult
-make menuconfig
-# Select: STM32H723, 128KiB offset, 25MHz crystal, USB (PA11/PA12)
-# Enable: "Support bootloader entry on rapid double click of reset button"
-make
+# 1. Build Katapult for H723 (verify CONFIG_MCU=stm32h723xx before building!)
+cd ~/katapult && make olddefconfig && make    # -> out/katapult.bin (.text @0x08000000)
 
-# 2. Enter DFU (BOOT0 + RESET) — LAST TIME EVER
-sudo dfu-util -a 0 -s 0x08000000:leave -D out/katapult.bin
+# 2. Enter ROM DFU (BOOT0 + RESET), then flash Katapult:
+sudo dfu-util -a 0 -s 0x08000000:mass-erase:force:leave -D out/katapult.bin
+#   note: mass-erase REQUIRES :force ; 'get_status' error on :leave is benign
 
-# 3. Build Klipper
-cd ~/klipper
-make menuconfig
-# Select: STM32H723, 128KiB bootloader, 25MHz crystal, USB (PA11/PA12)
-make
+# 3. Build Klipper with 128KiB bootloader offset (app @0x08020000):
+cd ~/klipper && make                          # -> out/klipper.bin (.text @0x08020000)
 
-# 4. Flash Klipper via Katapult (no button!)
-python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-katapult* -f ~/klipper/out/klipper.bin
+# 4. Enter ROM DFU again, flash Klipper ABOVE Katapult:
+sudo dfu-util -a 0 -s 0x08020000:leave -D out/klipper.bin
 ```
 
-### Future Updates (fully automated, no physical access needed)
+### Future Updates (ROM DFU — one BOOT0+RESET per update)
 ```bash
-# Rebuild Klipper with changes
 cd ~/klipper && make
-
-# Flash — Klipper reboots into Katapult, firmware uploads, MCU reboots
-python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/usb-Klipper* -f ~/klipper/out/klipper.bin
-
-# Or use Klipper's built-in DTR method:
-cd ~/klipper/scripts
-python3 -c 'import flash_usb as u; u.enter_bootloader("/dev/serial/by-id/usb-Klipper...")'
-# Board enters Katapult/DFU, then flash via dfu-util or flashtool
+sudo systemctl stop klipper
+# Enter ROM DFU: hold BOOT0, tap RESET, release BOOT0  (verify: lsusb | grep 0483:df11)
+sudo dfu-util -a 0 -s 0x08020000:leave -D out/klipper.bin
+sudo systemctl start klipper
+curl -s http://localhost:7125/printer/info    # expect state: ready
 ```
 
 ### Memory Layout
 ```
 0x08000000 ┌──────────────────┐
-           │  Katapult (16KB) │ ← Persistent bootloader, survives Klipper updates
-           │  (bootloader)    │
+           │  Katapult (~6KB)  │ ← boot/jump stage (flash-write broken on this build; EC11)
 0x08020000 ├──────────────────┤
-           │  Klipper MCU     │ ← Application firmware (replaceable without button)
-           │  (firmware)      │
-           │                  │
-0x08080000 └──────────────────┘
+           │  Klipper MCU      │ ← application firmware; flash here via ROM DFU (0x08020000)
+           │  (~44KB)          │
+0x08040000 └──────────────────┘   (Klipper occupies the 0x08020000 128KiB sector)
 ```
 
 ---

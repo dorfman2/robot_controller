@@ -10,6 +10,21 @@ inclusion: always
 - Pi user `pi` in `dialout` group for serial port access without root
 
 ## Learnings and Project Insights
+- **RTB `ETS.eval(q)` returns a raw 4x4 numpy ndarray, NOT an SE3** — extract translation via `T[:3,3]` or wrap `SE3(T, check=False)` (no `.t` on the ndarray).
+- **RTB `ETS.ik_LM(Tep, q0=...)` returns a 5-tuple** `(q_sol, success, iterations, searches, residual)`; use `mask=[1,1,1,0,0,0]` for position-only targets. Build joints with `ET.Rz()/Ry()/Rx()` (no arg = joint var) and links with `ET.tz(len)`.
+- **RTB on the Pi 4 (aarch64) is fast**: FK ~0.001 ms, IK ~1 ms/solve — no GPU needed, no ikpy fallback required. Installs from prebuilt manylinux aarch64 wheels (no compilation); `rtb-data` wheel is ~116 MB (main download cost).
+- **PEP-668 on Ubuntu 24.04**: `pip install --user` is refused ("externally-managed-environment"). Use a venv; if `python3-venv`/ensurepip is missing, `virtualenv --system-site-packages` works (that's how klippy-env/moonraker-env were built). `--system-site-packages` reuses apt numpy/pyserial/websockets/aiohttp so only the IK stack is added.
+- **A venv shadows only within itself**: RTB pulls numpy 2.5.1 into the venv over the apt numpy 1.26.4 — no system impact because the venv's site-packages take precedence for that interpreter only.
+- **IK↔board joint index offset**: `ik_solver` models arm joints 0..5 = J0..J5; KlipperBoard uses index 0 = rail, so board index = arm index + 1. Map with `{i+1: angle for i, angle in enumerate(result.joint_angles_deg)}`.
+- **spatialmath RPY convention** pinned to `order="xyz"`, `unit="deg"` at the IK boundary; orientation error computed as the geodesic angle from `trace(R_target.T @ R_achieved)`.
+- **DepthAI v3 (3.8.0) camera API** (major change from v2): `cam = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)`; `out = cam.requestOutput((w,h), dai.ImgFrame.Type.BGR888i, fps=15)`; `q = out.createOutputQueue()`; `with dai.Pipeline() as pipeline: ... pipeline.start(); q.get().getCvFrame()`. `DeviceInfo` has no `getMxId()` in v3.
+- **OAK-1 Lite over USB2**: 720p uncompressed (BGR888i) crashes the device on teardown ("Device has crashed"); the frame before teardown is still valid. Use 640x360 for streaming. Move to USB3 port/cable for more headroom.
+- **Green-marker detection is lighting-sensitive**: bright lights overexpose the tape (V high, S drops) so it falls out of the HSV green range → detection fails while brightness reads fine. Diagnose by sampling blob HSV with a loose range; fix by softer lighting or widening/lowering the S floor.
+- **Overhead-camera marker placement**: put fiducial tape on the TOP of the end-effector (faces camera in any pose). Finger-tip tape gets occluded/edge-on when the arm folds to reach — invisible from above.
+- **Hand-eye homography overfits with few points**: 4 points fit an 8-DOF homography almost exactly (tiny reprojection error is meaningless). Need many points over the actual working area, calibrated at the target Z plane (parallax makes a high-Z calibration wrong for objects on the desk unless perfectly nadir).
+- **Reaching down/out hits joint limits**: this arm can't reach far-out + low-Z targets (IK returns "joint-limit clamping out of range"). Desk reachability is a small patch per rail position; the rail must reposition the patch. Verify reachability before planning pick moves.
+- **SSH persistent process on the Pi**: `sudo systemd-run --unit=NAME --collect --setenv=PYTHONUNBUFFERED=1 VENV/bin/python script.py` reliably backgrounds a long-running process (prints "Running as unit:"). `nohup ... &` / `setsid ... &` and combining a background launch with a trailing pipe over SSH silently drop output / exit 255. Run the bare `systemd-run` on its own line; verify separately with `systemctl is-active` + `curl`. Stop with `sudo systemctl stop NAME`.
+- **Grab one JPEG from an MJPEG stream**: read bytes until you find `\xff\xd8` … `\xff\xd9`. Always pull snapshots to UNIQUE local filenames — the IDE image viewer caches by path and shows a stale image for a reused name.
 - PlatformIO `build_src_dir` is not a valid per-environment option — use `build_src_filter = -<*> +<../firmware/xxx/src/>` for multi-firmware projects
 - OpenCM 9.04 lacks first-class PlatformIO board support; use `genericSTM32F103CB` or Arduino IDE with Robotis board package
 - RAMPS 1.4 stepper drivers (TMC2208) are active LOW on enable pin
@@ -73,14 +88,29 @@ inclusion: always
 - **TMC5160 on BTT Octopus MAX: SPI (not UART)** — pre-routed hardware SPI4, each driver has CS pin on GPIO G14-G9+D7
 - **OAK-1 Lite**: monocular 13MP (IMX214), Myriad X VPU, no stereo depth, USB-C, 2.5W, auto-focus
 - **DepthAI Python SDK**: `pip3 install depthai` — runs on Pi 4, controls OAK pipeline
-- **Katapult bootloader on STM32H723**: USB enumeration fails after flash — board doesn't show up. Likely CONFIG issue with USB HS-in-FS mode on H723. Katapult compiled and flashed but jumped to empty 0x08020000 and crashed. Double-click reset didn't recover. Workaround: flash Klipper directly to 0x08000000 without Katapult. Revisit later with correct H723 USB config.
+- **Katapult on STM32H723 — CORRECTED (2026-07-31)**: the earlier "USB enumeration fails / jumped to empty 0x08020000" failure was NOT a USB config issue — the leftover `~/katapult/.config` had been built for `stm32f103xe` (72MHz, 0x10000 flash, app@0x08002000). An F103 binary DFU'd to an H723 cannot init clocks/USB → no enumeration + crash. **Always verify `CONFIG_MCU`/`CONFIG_MACH_*` in `.config` before building.**
+- **Katapult H723 correct config**: `make olddefconfig` from a fragment with `CONFIG_MACH_STM32H723=y`, `CONFIG_STM32_FLASH_START_20000=y` (128KiB → app@0x8020000), `CONFIG_STM32_CLOCK_REF_25M=y`, `CONFIG_STM32_USB_PA11_PA12=y`, `CONFIG_ENABLE_DOUBLE_RESET=y`. Verify `CONFIG_FLASH_APPLICATION_ADDRESS=0x8020000`. Katapult enumerates as `1d50:6177`.
+- **DFU flash to STM32H723 (Octopus MAX EZ)**: needs `sudo` (`pi` hits `LIBUSB_ERROR_ACCESS` on `0483:df11` — no udev rule). ROM DFU alt=0 layout: `@Internal Flash /0x08000000/8*128Kg` (eight 128KiB sectors). Enter via BOOT0+RESET. `mass-erase` **requires the `:force` modifier**: `sudo dfu-util -a 0 -s 0x08000000:mass-erase:force:leave -D out/katapult.bin`. The `Error during download get_status` on `:leave` is benign (board resets).
+- **Katapult flash-WRITE broken on v0.0.1-113-gec59b9b (H723) — issue #128 (EC11)**: Katapult boots/jumps fine but `flashtool.py` faults the MCU on the first `SEND_BLOCK` during the 128KiB app-sector erase (`Flash write failed, flash address 0x8020000`, board drops off USB). Not a client timeout (Jul-2025 timeout fix already present). Community "good" commit `3e23332` predates H7 flash support so is not a valid downgrade. **Workaround in use**: flash Klipper via ROM DFU to the app offset, preserving Katapult: `sudo dfu-util -a 0 -s 0x08020000:leave -D ~/klipper/out/klipper.bin` (dfu-util erases the target sector first). Boot chain then works: reset → Katapult@0x08000000 → Klipper@0x08020000 → klippy `ready`.
+- **Klipper 128KiB-bootloader rebuild**: to run above Katapult, flip `CONFIG_STM32_FLASH_START_0000` → `_20000` (app@0x8020000); keep `CLOCK_FREQ=520000000`, 25MHz ref, USBSERIAL, VID/PID 1d50:614e. `make olddefconfig` + verify `.text`@0x08020000 via `arm-none-eabi-objdump -h out/klipper.elf`. Serial ID is unchanged (tied to chipid), so printer.cfg needs no edit.
 - **Klipper MCU on BTT Octopus MAX EZ**: must use `CONFIG_CLOCK_FREQ=520000000` (not 400MHz). Flash size is `0x40000`. `CONFIG_STM32_FLASH_START_0000` for no bootloader. USB enumerates as VID `1d50` PID `614e`.
 - **Klipper serial ID**: `usb-Klipper_stm32h723xx_380009001151313531383332-if00`
 - **Klipper config path mismatch**: klippy looks for `/home/pi/printer.cfg` but KIAUH installs to `~/printer_data/config/printer.cfg` — fixed with symlink
-- **Klipper `flash_usb.py`**: alternative to Katapult for future updates — pulse DTR at 1200 baud to enter bootloader, then dfu-util. Requires `CONFIG_HAVE_BOOTLOADER_REQUEST=y` in Klipper build (already set).
+- **Klipper `flash_usb.py`**: pulse DTR at 1200 baud to enter bootloader, then dfu-util. Requires `CONFIG_HAVE_BOOTLOADER_REQUEST=y` (already set). CAVEAT: with Katapult now installed at 0x08000000, a reset lands in Katapult, not the ROM DFU — so this does not cleanly bypass Katapult. Treat buttonless updates as unresolved until EC11 (Katapult flash-write) is fixed; use BOOT0+RESET → ROM DFU meanwhile.
 - **Klipper Phase 4 partial success**: all 7 motors moved via `MANUAL_STEPPER MOVE=` commands (including Motor-7/J5 which failed in grblHAL!) — TMC5160 SPI working in Klipper
 - **Motor overheating at idle**: 1.2A hold current too high for NEMA 17. Fixed with `hold_current: 0.300` (J3 at 0.750 due to load). Run current 0.800A for most, 1.200A for J3 only.
-- **Klipper GCODE_AXIS limitation**: X/Y/Z axes can't be registered (reserved for kinematics). Only A/B/C/U work. Once registered, `MANUAL_STEPPER MOVE=` fails — must use `G1` instead. Two modes are mutually exclusive.
+- **Klipper GCODE_AXIS (CORRECTED 2026-07-31)**: earlier claim "only A/B/C/U work" was WRONG. All 7 manual_steppers register fine to non-reserved letters **W A B C D H U** (only X/Y/Z/E/F/N are reserved). Registration confirmed by the toolhead/gcode_move position vector expanding to include all axes. Once registered, `MANUAL_STEPPER MOVE=` fails for that stepper — must use `G1` (two modes mutually exclusive). `FIRMWARE_RESTART` clears GCODE_AXIS regs → re-run `REGISTER_AXES`. Do NOT mix rail `W` (mm) with degree axes in one `G1` — `F` becomes a blended mm+deg vector (unpredictable speed); command the rail separately.
+- **Phase 4 motor testing — ALL PASS (2026-07-31)**: via Moonraker `POST /printer/gcode/script`. All 7 steppers move bidirectionally (MANUAL_STEPPER SET_POSITION=0 then MOVE=±N SPEED=n), INCLUDING **stepper_u/J5 on Motor-7** (the grblHAL failure — Motor-8 fallback not needed). Coordinated `G90`+`G1 A20 H15 U25 F900` = simultaneous multi-joint motion. Gripper servo (PA1): **50°=open, 120°=closed** (recalibrated after re-centering the servo horn; UI slider limited to 50-120). Earlier attempts overheated the servo stalling against the stops until the horn was re-seated. E-STOP: `POST /printer/emergency_stop`→`shutdown`, `POST /printer/firmware_restart`→`ready`. DUMP_TMC uses bare stepper name (`stepper_x`). Capture gcode responses via `GET /server/gcode_store?count=N`.
+- **Cooling fan**: `[fan_generic motor_fan]` on PF8 (FAN5); PA1/FAN4 unavailable (gripper). `SET_FAN_SPEED FAN=motor_fan SPEED=0..1`. FAN5 voltage set by VF5 jumper — mismatch makes fan spin slow/not at all (Klipper still drives 100% duty at SPEED=1).
+- **EZ5160 sense_resistor = 0.050 (CRITICAL)**: Klipper's tmc5160 default is 0.075, but the BTT EZ5160 is a 50mOhm driver. Omitting `sense_resistor: 0.050` makes actual current ~1.5x the labeled `run_current` AND miscalibrates StallGuard's SG_RESULT. Set it explicitly on every `[tmc5160 ...]` section.
+- **StallGuard sensorless homing NOT viable on the belt rail (2026-08-01)**: the belt skips on the pulley before the motor rotor stalls, so StallGuard never sees a load spike distinct from free-motion noise. Full scan (even with correct sense_resistor, gentle accel, and 40mm/s): `driver_SGT <= 11` false-trips during the move, `>= 12` belt-skips with no trigger — no usable window. TMC5160 SGT polarity: **-64 = most sensitive, +63 = least**. Adopted MANUAL homing instead.
+- **Klipper manual_stepper + TMC virtual endstop config ORDERING**: `[tmc5160 manual_stepper X]` MUST come before `[manual_stepper X]` in printer.cfg — manual_stepper resolves `endstop_pin` at init (stepper.LookupRail) before the tmc section registers the `tmc5160_X:virtual_endstop` chip (chip name = tmc.py: name_parts[0]_name_parts[-1] = `tmc5160_stepper_x`). Regular kinematic steppers avoid this (load late with toolhead).
+- **TMC5160 sensorless diag pin polarity**: use `diag1_pin: ^!PF0` (pull-up + invert) so the virtual endstop reads `open` at rest; bare `PF0` read TRIGGERED at rest and blocked the homing move at 0 distance. (The virtual_endstop pin itself can't take ^/! — only the raw diag pin can.)
+- **Manual rail homing macros** (StallGuard abandoned): `RELEASE_RAIL` (`MANUAL_STEPPER STEPPER=stepper_x ENABLE=0`) → push carriage to home (negative) end → `SET_RAIL_HOME` (`SET_POSITION=0`). Rail dir inverted (`dir_pin: !PC14`) so negative = home.
+- **armold_controller soft limits** (`klipper_board.py`): Klipper manual_stepper does NOT enforce position limits — armold_controller must. `JointLimit` dataclass + `DEFAULT_SOFT_LIMITS` (rail 0-406mm; J0 ±180, J1 ±90, J2 ±150, J3 ±120, J4 ±90, J5 ±180); `clamp_target()` applied in jog_joint/move_coordinated. Also fixed jog to be relative (current+delta) since MANUAL_STEPPER MOVE is absolute.
+- **armold.service `200/CHDIR`**: service WorkingDirectory `/home/pi/Armold` didn't exist (daemon never fully deployed) → auto-restart loop. `scripts/deploy_controller.sh` rsyncs to `/home/pi/Armold` and will create it. We drove Klipper directly via Moonraker HTTP all of Phase 4-6, bypassing the daemon. Deployed 2026-08-01: daemon active, WS 9090 up.
+- **Phase 7 validation PASSED (2026-08-01)**: (1) `DUMP_TMC` current/temp check found the EZ5160 sense_resistor bug → fixed `sense_resistor: 0.050` on ALL 7 (GLOBALSCALER uniform 45@0.8A / 67@J3 1.2A; no otpw/ot). (2) Per-joint currents (run/hold): rail 0.8/0.3, base 0.8/0.3, **shoulder(z) 1.4/1.1**, elbow(a) 0.9/0.3, J3 pitch(b) 1.2/0.75, roll 0.8/0.3, yaw 0.8/0.3 — shoulder tuned up (0.8A stalled at full extension; 1.0A ok to ±50°; 1.2A lifted 90° at FULL extension; raised to 1.4A run for margin). Monitor shoulder temp on long runs (1.4A is near NEMA17 rating). (3) All 7 move concurrently (MANUAL_STEPPER SYNC=0). (4) Position accuracy: base 90° cmd = 90° measured (rotation_distance 13.87 confirmed). (5) USB unplug → klippy shutdown → FIRMWARE_RESTART (often ×2) → ready; NOT hands-off (recommend watchdog auto-restart). Final validated config saved to repo `pi/printer.cfg`.
+- **Klipper SYNC=0 for concurrent manual_stepper motion**: `MANUAL_STEPPER STEPPER=x MOVE=n SPEED=s SYNC=0` returns without waiting, so issuing all 7 back-to-back runs them concurrently. Use this for multi-joint motion instead of one mixed-unit G1 (rail mm + degree axes blends the F feedrate). Add `G4 P<ms>` dwell to wait for completion before the return batch.
 - **Klipper `MANUAL_STEPPER` SPEED parameter**: units are mm/s (or deg/s for rotary), not mm/min like G-code F values
 
 ## System Architecture
@@ -134,6 +164,20 @@ EZ5160 × 7 → NEMA 17 × 6 → 20:1 Cycloidal → Joints
 - **Einsy RAMBo** (ATmega2560): Motor control firmware, TMC2130 SPI, StallGuard
 - **RAMPS 1.4** (ATmega2560): Secondary motor control (planned, not yet wired)
 
+### Cartesian IK data flow (RTB — integrated 2026-07-31)
+```
+Web UI (Cartesian panel)
+  → {cmd: move_cartesian, x,y,z, [roll,pitch,yaw], speed}  (WebSocket 9090)
+    → ws_server_klipper._handle_move_cartesian
+      → ArmIK.solve_ik(CartesianTarget, seed=current arm joints)   # ik_solver.py, RTB ETS.ik_LM
+        → clamp to joint limits, recompute FK, report errors
+      → KlipperBoard.goto_positions({board_idx: angle})   # arm idx i -> board idx i+1 (0=rail)
+  ← state broadcast augmented with end_effector FK pose (2 Hz)
+```
+- Rail (board joint 0) is NOT in the IK chain — commanded separately as a gross-positioning axis.
+- Point-to-point per-joint move (no path planning / no collision checking) — caller ensures the straight-line joint interpolation is safe.
+- Daemon runs from `/home/pi/armold-venv` so RTB is importable (see tech-context).
+
 ## Code Structure
 - `armold_controller/` — Motion control daemon (Pi)
   - `__init__.py` — Package init, version
@@ -142,8 +186,12 @@ EZ5160 × 7 → NEMA 17 × 6 → 20:1 Cycloidal → Joints
   - `command.py` — Command dataclass with sequence IDs and lifecycle
   - `serial_board.py` — Per-board serial thread + command queue + ACK
   - `motion_manager.py` — Move coordination, jog stacking, halt
-  - `ws_server.py` — asyncio WebSocket + JSON protocol
-  - `tests/test_core.py` — Unit tests (13 tests)
+  - `klipper_board.py` — Moonraker API client (KlipperBoard: goto_positions, jog, soft-limit clamp)
+  - `ws_server.py` — asyncio WebSocket + JSON protocol (serial backend)
+  - `ws_server_klipper.py` — asyncio WebSocket + JSON protocol (Klipper backend; move_cartesian, waypoints, EE FK broadcast)
+  - `ik_solver.py` — RTB 6-DOF arm FK/IK (ArmIK, ArmGeometry, CartesianTarget, IKResult); rail excluded
+  - `waypoints.py` — Named arm-pose store (save/goto/delete)
+  - `tests/` — Unit/integration tests (test_ik_solver 15, test_ws_move_cartesian 4, test_soft_limits 8, test_waypoints 8, test_core, test_klipper_board, test_trajectory_planner)
 - `firmware/einsy/src/main.cpp` — Einsy RAMBo firmware (TMC2130 SPI, 4-axis)
 - `firmware/ramps/src/main.cpp` — RAMPS firmware (basic STEP/DIR, 3-axis)
 - `firmware/ramps_s42c/src/main.cpp` — RAMPS 1.4 firmware for S42C (STEP/DIR, soft limits, sinusoidal ramp)
@@ -152,7 +200,8 @@ EZ5160 × 7 → NEMA 17 × 6 → 20:1 Cycloidal → Joints
 - `scripts/deploy_controller.sh` — Mac → Pi controller deploy
 - `pi/armold.service` — systemd service file (single daemon)
 - `ros2_bridge/` — OLD ROS 2 bridge (archived, superseded)
-- `.kiro/specs/btt-grblhal-ik/` — BTT + grblHAL + IK spec (requirements, design, tasks)
+- `.kiro/specs/rtb-cartesian-ik/` — RTB Cartesian IK spec (requirements, design, tasks) — CURRENT
+- `.kiro/specs/btt-grblhal-ik/` — BTT + grblHAL + IK spec (requirements, design, tasks) — superseded by Klipper
 - `.kiro/specs/ramps-s42c-closed-loop/` — RAMPS + S42C closed-loop spec (requirements, design, tasks)
 - `docs/motion-controller-analysis.md` — Hardware options comparison (A/B/C/D/E + Mesa)
 

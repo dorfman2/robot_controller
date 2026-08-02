@@ -39,14 +39,23 @@ inclusion: always
 - **dresco/STM32H7xx** — grblHAL STM32H7 driver repo (PlatformIO build, board maps)
 - **dfu-util** — DFU flash tool (installed on Pi)
 
-### Vision Stack (OAK-1 Lite — spec complete, hardware to acquire)
-- **OAK-1 Lite** — 13MP monocular AI camera (IMX214 + Myriad X VPU)
-- `depthai` — Luxonis Python SDK for OAK camera pipelines
-- `opencv-python` — Image processing, camera calibration
-- `blobconverter` — Convert OpenVINO models to Myriad X .blob format
-- `ultralytics` — YOLOv8 training (dev machine only, not on Pi)
-- **YOLOv8n** — Object detection model (nano variant, runs on Myriad X)
-- **Roboflow** — Dataset annotation and management (cloud service)
+### Vision Stack (OAK-1 Lite — CONNECTED, in progress 2026-08-01)
+- **OAK-1 Lite** — 13MP monocular camera (IMX214 + Myriad X VPU). Enumerates as `03e7:2485` (unbooted). On a USB2 bus (HIGH speed) currently.
+- **DepthAI v3** — `depthai==3.8.0` (aarch64 wheel) in `/home/pi/armold-venv`. NOTE: v3 API differs greatly from v2; the old `oak1-vision-pick` spec (v2: blobconverter/YoloDetectionNetwork/.blob) is obsolete. v3 reference doc committed at repo root `v3 api.md`.
+- `opencv-python-headless==5.0.0.93` — image processing (aarch64 wheel, headless — no GUI on Pi).
+- **udev**: `/etc/udev/rules.d/80-movidius.rules` → `SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"` (non-root USB access).
+- **Detection approach = classic CV** (no model training for first pick): flat-field bg subtraction + elongation filter for the pen; HSV green-tape marker on the gripper for hand-eye calibration. v3 NN path (DetectionNetwork / model zoo / nn_archive) is the documented fallback.
+- **Stream/tooling** (`scripts/vision/`, deployed to `/home/pi/`): `oak_detect_stream.py` (MJPEG :8091 with `/`, `/stream`, `/grip` JSON), `calibrate.py` (hand-eye homography grid), `ws_goto.py`/`ws_move.py`/`ws_state.py` (arm control via WS 9090), `grab_frame.py`/`green_diag.py` (diagnostics). Run stream via `sudo systemd-run --unit=oak-stream --collect ...`.
+- **Calibration output**: `/home/pi/armold_handeye.json` (homography H, rail_mm, z_plane, points, reproj error).
+- **Desk plane**: z ≈ 78 mm in arm base frame (gripper 493.7 mm / 19-7/16" above desk at EE z≈572).
+
+### Motion Planning / IK Stack (Robotics Toolbox — integrated 2026-07-31)
+- **roboticstoolbox-python** (v1.3.1) — FK/IK engine. Model built via ETS (Elementary Transform Sequence), NOT URDF/DH. `ETS.ik_LM` (Levenberg-Marquardt) solver, ~1 ms/solve on the Pi.
+- **spatialmath-python** (v1.1.16) — SE3 poses, RPY conversions (used with `order="xyz"`, degrees).
+- **scipy** (v1.18.0), **matplotlib** (v3.11.1) — RTB transitive deps (aarch64 wheels available).
+- **numpy** (2.5.1 in venv; 1.26.4 system) — numerical core.
+- Chosen over: ikpy (fallback), Trac-IK (heavy KDL/NLopt build), Pinocchio/Pink (overkill), pytorch_kinematics (GPU-pointless on Pi).
+- Module: `armold_controller/ik_solver.py` (arm-only 6-DOF; rail commanded separately). Installs from prebuilt aarch64 wheels — no compilation on the Pi.
 
 ### FK Simulator (Armold_FK_v1 — third-party reference)
 - **Repository**: https://github.com/LeeWhite187/Armold_FK_v1
@@ -85,6 +94,8 @@ inclusion: always
 - **SSH**: `ssh pi@armold.local` (ed25519 key, passphrase-protected)
 - **PlatformIO**: installed at /home/pi/.local/bin (v6.1.19)
 - **Serial devices**: /dev/armold_einsy (udev symlink from ttyACM0)
+- **armold venv**: `/home/pi/armold-venv` (built with `virtualenv --system-site-packages`) — the armold daemon runs from `/home/pi/armold-venv/bin/python` so the RTB IK stack is importable. `virtualenv` is at `/usr/bin/virtualenv`; `python3-venv`/ensurepip is NOT installed.
+- **PEP-668**: Ubuntu 24.04 is externally-managed — `pip3 install --user` is refused; use the venv (above).
 
 ## Component Relationships and Dependencies
 - `scripts/example.py` → legacy ROS 1 control script (to be migrated)
@@ -138,6 +149,54 @@ inclusion: always
 | J3 | Wrist Pitch | X-pitch | Y-pitch (`0 1 0`) | ±120° | 50° |
 | J4 | Wrist Yaw | Z-yaw | Z-yaw (`0 0 1`) | ±90° | 0° |
 | J5 | Wrist Roll | Y-roll | X-roll (`1 0 0`) | ±180° | 0° |
+
+## Armold Physical Link Lengths (Measured 2026-07-31)
+
+Real measured segment lengths along the kinematic chain (mm). These supersede
+the proportional Armold_FK_v1 DIMS estimates and are baked into
+`ik_solver.MEASURED_GEOMETRY` (the default `ArmIK` geometry, `estimated=False`).
+
+| Segment | Length (mm) | ArmGeometry field |
+|---------|-------------|-------------------|
+| base of arm → J0 | 70 | `base_height` |
+| J0 → J1 | 48 | `shoulder_height` |
+| J1 → J2 | 152 | `upper_arm` |
+| J2 → J3 | 152 | `fore_arm` |
+| J3 → J4 | 77 | `wrist_pitch_offset` |
+| J4 → J5 | 60 | `wrist_yaw_offset` |
+| J5 → gripper tip | 83 | `tool_len` |
+
+- **ETS chain (Z-up, offsets along local Z)**: `tz(70)·Rz[J0]·tz(48)·Ry[J1]·tz(152)·Ry[J2]·tz(152)·Ry[J3]·tz(77)·Rz[J4]·tz(60)·Rx[J5]·tz(83)`.
+- **Horizontal reach (J0 axis → tool tip)** = 152+152+77+60+83 = **524 mm** (spec sheet said 475 mm; that value is now reference-only, `SPEC_MAX_REACH_MM`).
+- **FK landmarks (measured geometry)**: zero pose = (0, 0, 642); home `[0,-30,70,50,0,0]°` = (241.7, 0, 366.1); full extension `[0,90,0,0,0,0]°` = (524, 0, 118).
+- **OPEN ITEM**: J4/J5 axis *labels* (yaw vs roll) disputed between FK-sim and Klipper config. Kinematic order used (J4 about Z, J5 about X) is correct; only the human label needs physical confirmation.
+
+## Transferable Analysis Patterns
+
+### Remote Execution Patterns
+
+#### Ship-and-run a script over SSH via base64 (avoids heredoc hangs)
+- **Command**: `base64 < local.py | ssh -i KEY HOST 'base64 -d > /tmp/x.py && python3 /tmp/x.py'`
+- **Purpose**: Run a non-trivial local script on a remote host without heredoc quoting/escaping breakage or interactive-shell hangs.
+- **Use Case**: Probing a remote environment or benchmarking (e.g. verifying a library imports/runs on a target arch) when inline `python3 -c` quoting gets fragile.
+- **Example**: Confirmed RTB FK/IK runs on the Pi (aarch64) and measured ~1 ms/solve.
+- **Notes**: Heredoc-over-SSH with nested f-string quotes broke once this session; base64 pipe is robust. Keep scripts f-string-free or use `.format()` to dodge quote escaping entirely.
+
+#### Non-mutating dependency feasibility probe
+- **Command**: `ssh HOST 'PYTHON -c "import a, b, c"'` (per-module try/except reporting version or MISSING)
+- **Purpose**: Determine exactly which required modules a target interpreter can import before attempting any install.
+- **Use Case**: Deciding install strategy (apt vs venv vs pip) and detecting PEP-668 constraints on a shared device.
+- **Example**: Found Pi system python had numpy/serial/websockets/aiohttp but not scipy/spatialmath/roboticstoolbox → chose a `--system-site-packages` venv.
+- **Notes**: Read-only; safe on shared/production hosts. Pair with `pip install --dry-run` to detect wheel availability vs source builds.
+
+### Environment / Packaging Patterns
+
+#### PEP-668 externally-managed detection and venv workaround
+- **Command**: `virtualenv --system-site-packages /path/to/venv` (when `python3 -m venv` lacks ensurepip and `pip --user` is refused)
+- **Purpose**: Add pip-only packages on Debian/Ubuntu 24.04+ without `--break-system-packages`, while reusing apt-managed compiled deps (numpy, etc.).
+- **Use Case**: Installing a heavy scientific stack (RTB → scipy/matplotlib) onto a system-managed host without disturbing OS packages.
+- **Example**: `/home/pi/armold-venv` reuses apt numpy/pyserial/websockets/aiohttp and adds RTB from aarch64 wheels; service `ExecStart` points at the venv python.
+- **Notes**: Prefer `virtualenv` if `python3-venv` (ensurepip) isn't installed and you can't apt-install. `--system-site-packages` keeps the venv small and avoids duplicate compiled deps.
 
 ## Einsy RAMBo TMC2130 Tuned Settings (Validated)
 

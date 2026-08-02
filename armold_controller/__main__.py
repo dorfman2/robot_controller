@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Default configuration
 DEFAULT_CONFIG: dict[str, Any] = {
+    "backend": "klipper",  # "serial" (legacy Einsy/RAMPS) or "klipper" (BTT Octopus MAX EZ)
     "boards": {
         "einsy": {
             "port": "/dev/armold_einsy",
@@ -40,6 +41,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "num_joints": 2,
             "enabled": False,
         },
+    },
+    "klipper": {
+        "moonraker_url": "http://localhost:7125",
     },
     "websocket": {
         "host": "0.0.0.0",
@@ -137,6 +141,10 @@ async def _health_check_loop(motion_manager: MotionManager, path: Path) -> None:
 async def run(config: dict[str, Any]) -> None:
     """Main async entry point. Starts boards, motion manager, and WebSocket server.
 
+    Supports two backends:
+    - "serial": Direct serial to Einsy/RAMPS boards (original)
+    - "klipper": Via Moonraker API to Klipper host (new)
+
     Args:
         config: Full configuration dictionary.
     """
@@ -146,6 +154,21 @@ async def run(config: dict[str, Any]) -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, shutdown_event.set)
 
+    backend = config.get("backend", "serial")
+
+    if backend == "klipper":
+        await _run_klipper(config, shutdown_event)
+    else:
+        await _run_serial(config, shutdown_event)
+
+
+async def _run_serial(config: dict[str, Any], shutdown_event: asyncio.Event) -> None:
+    """Run with direct serial backend (Einsy/RAMPS boards).
+
+    Args:
+        config: Full configuration dictionary.
+        shutdown_event: Event signaled on SIGTERM/SIGINT.
+    """
     # Create serial boards
     boards: dict[str, SerialBoard] = {}
     for name, board_cfg in config["boards"].items():
@@ -203,13 +226,107 @@ async def run(config: dict[str, Any]) -> None:
     except asyncio.CancelledError:
         pass
 
-    # Graceful shutdown
     await ws_server.stop()
     for name, board in boards.items():
         board.stop()
         logger.info("Stopped board: %s", name)
 
     logger.info("Armold controller stopped")
+
+
+async def _run_klipper(config: dict[str, Any], shutdown_event: asyncio.Event) -> None:
+    """Run with Klipper/Moonraker backend.
+
+    Args:
+        config: Full configuration dictionary.
+        shutdown_event: Event signaled on SIGTERM/SIGINT.
+    """
+    from armold_controller.klipper_board import NUM_JOINTS, KlipperBoard
+    from armold_controller.waypoints import WaypointStore
+    from armold_controller.ws_server_klipper import KlipperWebSocketServer
+
+    klipper_cfg = config.get("klipper", {})
+    moonraker_url = klipper_cfg.get("moonraker_url", "http://localhost:7125")
+
+    # Create KlipperBoard
+    klipper_board = KlipperBoard(moonraker_url=moonraker_url)
+
+    # Waypoint store (persists named arm poses across restarts)
+    waypoints_path = Path(
+        klipper_cfg.get("waypoints_path", str(Path.home() / "armold_waypoints.json"))
+    )
+    waypoint_store = WaypointStore(waypoints_path, NUM_JOINTS)
+
+    # Create WebSocket server for Klipper backend
+    ws_cfg = config["websocket"]
+    motion_cfg = config["motion"]
+    ws_server = KlipperWebSocketServer(
+        host=ws_cfg["host"],
+        port=ws_cfg["port"],
+        klipper_board=klipper_board,
+        broadcast_hz=motion_cfg.get("state_broadcast_hz", 2.0),
+        waypoint_store=waypoint_store,
+    )
+
+    # Connect to Moonraker
+    await klipper_board.connect()
+
+    # Start WebSocket server
+    await ws_server.start()
+    logger.info(
+        "WebSocket server (Klipper) listening on %s:%d",
+        ws_cfg["host"],
+        ws_cfg["port"],
+    )
+
+    # Start health check task
+    health_task = asyncio.create_task(
+        _klipper_health_check_loop(klipper_board, Path("/tmp/armold_health"))
+    )
+
+    # Wait for shutdown signal
+    await shutdown_event.wait()
+    logger.info("Shutdown signal received")
+
+    # Graceful shutdown
+    health_task.cancel()
+    try:
+        await health_task
+    except asyncio.CancelledError:
+        pass
+
+    await ws_server.stop()
+    await klipper_board.disconnect()
+
+    logger.info("Armold controller (Klipper backend) stopped")
+
+
+async def _klipper_health_check_loop(
+    klipper_board: Any, path: Path
+) -> None:
+    """Write health check file every 10 seconds for Klipper backend.
+
+    Args:
+        klipper_board: KlipperBoard instance.
+        path: Path to write health check file.
+    """
+    import time as _time
+
+    while True:
+        try:
+            state = klipper_board.get_state()
+            health = json.dumps({
+                "alive": True,
+                "timestamp": _time.time(),
+                "connected": state["connected"],
+                "enabled": state["enabled"],
+                "queue_depth": state["queue_depth"],
+                "klipper_ready": state.get("klipper_ready", False),
+            })
+            path.write_text(health)
+        except Exception:
+            pass
+        await asyncio.sleep(10.0)
 
 
 def main() -> None:

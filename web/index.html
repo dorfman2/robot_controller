@@ -12,9 +12,9 @@
         }
         .page-layout { display: flex; gap: 20px; max-width: 1200px; margin: 0 auto; }
         .main-column { flex: 1; min-width: 0; }
-        .queue-column { width: 280px; flex-shrink: 0; }
+        .side-column { width: 300px; flex-shrink: 0; }
 
-        header { text-align: center; margin-bottom: 20px; max-width: 1200px; margin: 0 auto 20px; }
+        header { text-align: center; max-width: 1200px; margin: 0 auto 20px; }
         header h1 { font-size: 2rem; color: #00d4ff; margin-bottom: 5px; }
         header p { color: #888; font-size: 0.9rem; }
 
@@ -26,6 +26,12 @@
         .status-indicator { display: flex; align-items: center; gap: 8px; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4444; }
         .status-dot.connected { background: #44ff44; }
+        .ready-tag {
+            font-size: 0.72rem; padding: 2px 8px; border-radius: 4px;
+            background: #0f3460; color: #888; margin-left: 6px;
+        }
+        .ready-tag.ready { background: #1a3a2a; color: #2ecc71; }
+        .ready-tag.shutdown { background: #3a1a1a; color: #e74c3c; }
         .motor-toggle {
             padding: 8px 20px; border: none; border-radius: 5px;
             font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
@@ -45,57 +51,55 @@
         }
         .speed-btn.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
         .speed-btn:hover { border-color: #00d4ff; }
+        .speed-bar .speed-note { color: #666; font-size: 0.72rem; margin-left: auto; }
 
         .joint-panel {
             background: #16213e; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px;
         }
-        .joint-panel.disabled { opacity: 0.5; }
-        .joint-panel.disabled .jog-btn { pointer-events: none; }
+        .joint-panel.rail { border-left: 3px solid #9b59b6; }
         .joint-header {
             display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
         }
         .joint-header h3 { color: #00d4ff; font-size: 0.95rem; }
-        .joint-header .board-tag {
-            font-size: 0.65rem; background: #0f3460; padding: 2px 6px; border-radius: 3px; color: #888;
+        .joint-header .range-tag {
+            font-size: 0.65rem; background: #0f3460; padding: 2px 6px; border-radius: 3px;
+            color: #777; margin-left: 8px; font-weight: 400;
         }
         .joint-position {
-            font-family: 'Courier New', monospace; font-size: 1rem; color: #fff;
-            background: #0f3460; padding: 2px 8px; border-radius: 4px;
-        }
-        .joint-degrees {
-            font-family: 'Courier New', monospace; font-size: 0.9rem; color: #00d4ff; margin-left: 6px;
+            font-family: 'Courier New', monospace; font-size: 1.05rem; color: #fff;
+            background: #0f3460; padding: 2px 10px; border-radius: 4px; min-width: 90px;
+            text-align: right; display: inline-block;
         }
         .joint-controls { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
         .jog-btn {
             padding: 7px 10px; border: 1px solid #334; border-radius: 5px; background: #0f3460;
             color: #fff; font-size: 0.75rem; font-weight: 500; cursor: pointer;
-            transition: all 0.15s; min-width: 44px; text-align: center;
+            transition: all 0.15s; min-width: 46px; text-align: center;
         }
         .jog-btn:hover { background: #1a4a80; border-color: #00d4ff; }
         .jog-btn:active { background: #00d4ff; color: #000; }
         .jog-btn.negative { border-color: #553; }
         .spacer { width: 6px; }
 
-        .actions { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .actions { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .action-btn {
             padding: 9px 16px; border: 1px solid #334; border-radius: 6px;
             background: #16213e; color: #ccc; font-size: 0.8rem; cursor: pointer; transition: all 0.15s;
         }
         .action-btn:hover { background: #1a3050; border-color: #00d4ff; color: #fff; }
-        .action-btn.demo-btn { background: #1a4a2e; border-color: #2ecc71; color: #2ecc71; }
-        .action-btn.demo-btn:hover { background: #2ecc71; color: #000; }
-        .action-btn.demo-btn.running { background: #f39c12; border-color: #f39c12; color: #000; cursor: not-allowed; }
+        .action-btn.recover { border-color: #f39c12; color: #f39c12; }
+        .action-btn.recover:hover { background: #f39c12; color: #000; }
         .estop-btn {
             padding: 10px 24px; border: 2px solid #e74c3c; border-radius: 6px; background: #e74c3c;
             color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer;
-            transition: all 0.1s; text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.1s; text-transform: uppercase; letter-spacing: 1px; margin-left: auto;
         }
         .estop-btn:hover { background: #c0392b; transform: scale(1.05); }
         .estop-btn:active { background: #922b21; transform: scale(0.98); }
 
         .connection-form {
             display: flex; gap: 10px; align-items: center;
-            background: #16213e; padding: 10px 20px; border-radius: 8px; margin-bottom: 12px;
+            background: #16213e; padding: 10px 20px; border-radius: 8px;
         }
         .connection-form input {
             background: #0f3460; border: 1px solid #334; color: #fff;
@@ -105,49 +109,99 @@
             padding: 7px 14px; background: #00d4ff; color: #000; border: none;
             border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 0.85rem;
         }
-        .board-divider {
-            text-align: center; color: #555; font-size: 0.7rem; margin: 6px 0;
-            border-top: 1px solid #2a2a4a; padding-top: 6px;
-        }
 
-        /* Queue column */
-        .queue-panel {
-            background: #16213e; border-radius: 10px; padding: 16px; position: sticky; top: 20px;
+        /* Gripper panel */
+        .gripper-panel {
+            background: #16213e; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;
         }
-        .queue-header {
-            display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+        .gripper-panel h3 { color: #00d4ff; font-size: 0.95rem; margin-bottom: 10px; }
+        .gripper-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .gripper-row input[type=range] { flex: 1; min-width: 140px; accent-color: #00d4ff; }
+        .gripper-val { font-family: 'Courier New', monospace; color: #fff; min-width: 46px; }
+
+        /* Side column */
+        .side-panel {
+            background: #16213e; border-radius: 10px; padding: 16px; margin-bottom: 12px;
         }
-        .queue-header h3 { color: #00d4ff; font-size: 0.95rem; }
-        .queue-count { color: #888; font-size: 0.75rem; }
-        .queue-list { max-height: 70vh; overflow-y: auto; }
-        .queue-empty { color: #555; font-size: 0.8rem; text-align: center; padding: 20px 10px; }
-        .queue-item {
+        .side-panel h3 { color: #00d4ff; font-size: 0.95rem; margin-bottom: 10px; }
+        .info-row { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 3px 0; }
+        .info-row .k { color: #888; }
+        .info-row .v { color: #e0e0e0; font-family: 'Courier New', monospace; }
+        .log-panel .log-list { max-height: 60vh; overflow-y: auto; }
+        .log-empty { color: #555; font-size: 0.8rem; text-align: center; padding: 16px 10px; }
+        .log-item {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 5px 8px; border-radius: 4px; margin-bottom: 3px; font-size: 0.75rem;
-            font-family: 'Courier New', monospace;
+            padding: 4px 8px; border-radius: 4px; margin-bottom: 3px; font-size: 0.72rem;
+            font-family: 'Courier New', monospace; background: #0f3460;
         }
-        .queue-item.complete { background: #1a3a2a; color: #2ecc71; }
-        .queue-item.moving { background: #3a3a1a; color: #f1c40f; }
-        .queue-item.queued { background: #1a2a3a; color: #888; }
-        .queue-item .status-badge {
+        .log-item .badge {
             font-size: 0.6rem; padding: 2px 5px; border-radius: 3px; text-transform: uppercase;
             font-weight: 600; white-space: nowrap;
         }
-        .queue-item.complete .status-badge { background: #2ecc71; color: #000; }
-        .queue-item.moving .status-badge { background: #f1c40f; color: #000; }
-        .queue-item.queued .status-badge { background: #334; color: #aaa; }
+        .log-item.ok .badge { background: #2ecc71; color: #000; }
+        .log-item.error .badge { background: #e74c3c; color: #fff; }
+        .log-item.sent .badge { background: #334; color: #aaa; }
+
+        /* Waypoints */
+        .wp-save { display: flex; gap: 6px; margin-bottom: 10px; }
+        .wp-save input {
+            flex: 1; min-width: 0; background: #0f3460; border: 1px solid #334; color: #fff;
+            padding: 6px 8px; border-radius: 5px; font-size: 0.8rem;
+        }
+        .wp-save button {
+            padding: 6px 10px; background: #00d4ff; color: #000; border: none;
+            border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 0.75rem; white-space: nowrap;
+        }
+        .wp-list { max-height: 40vh; overflow-y: auto; }
+        .wp-empty { color: #555; font-size: 0.8rem; text-align: center; padding: 12px 10px; }
+        .wp-item { background: #0f3460; border-radius: 5px; padding: 7px 9px; margin-bottom: 5px; }
+        .wp-name { color: #00d4ff; font-size: 0.82rem; font-weight: 600; }
+        .wp-pose {
+            color: #888; font-size: 0.66rem; font-family: 'Courier New', monospace;
+            margin: 3px 0 6px; word-break: break-word;
+        }
+        .wp-actions { display: flex; gap: 6px; }
+        .wp-btn {
+            padding: 4px 10px; border: 1px solid #334; border-radius: 4px;
+            background: #16213e; color: #ccc; font-size: 0.72rem; cursor: pointer;
+        }
+        .wp-btn.go { flex: 1; border-color: #2ecc71; color: #2ecc71; }
+        .wp-btn.go:hover { background: #2ecc71; color: #000; }
+        .wp-btn.del { border-color: #e74c3c; color: #e74c3c; }
+        .wp-btn.del:hover { background: #e74c3c; color: #fff; }
+
+        .cart-grid {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 8px 0;
+        }
+        .cart-grid label {
+            display: flex; flex-direction: column; font-size: 0.62rem;
+            color: #889; text-transform: uppercase; letter-spacing: 0.5px; gap: 2px;
+        }
+        .cart-grid input {
+            width: 100%; box-sizing: border-box; padding: 4px 5px;
+            background: #0f1626; border: 1px solid #334; border-radius: 4px;
+            color: #e8e8f0; font-family: 'Courier New', monospace; font-size: 0.78rem;
+        }
+        .cart-grid input:focus { outline: none; border-color: #00d4ff; }
+        .cart-actions { display: flex; gap: 6px; }
+        .cart-actions button {
+            flex: 1; padding: 6px 8px; border: 1px solid #334; border-radius: 4px;
+            background: #16213e; color: #ccc; font-size: 0.74rem; cursor: pointer;
+        }
+        .cart-actions button:last-child { border-color: #00d4ff; color: #00d4ff; }
+        .cart-actions button:last-child:hover { background: #00d4ff; color: #000; }
+        .cart-note { color: #778; font-size: 0.64rem; margin-top: 6px; line-height: 1.3; }
 
         @media (max-width: 900px) {
             .page-layout { flex-direction: column; }
-            .queue-column { width: 100%; }
-            .queue-panel { position: static; }
+            .side-column { width: 100%; }
         }
     </style>
 </head>
 <body>
     <header>
         <h1>Armold</h1>
-        <p>Six-Axis Robot Arm Controller</p>
+        <p>Seven-Axis Robot Arm Controller (Klipper / BTT Octopus MAX EZ)</p>
     </header>
 
     <div class="top-bar">
@@ -164,6 +218,7 @@
                 <div class="status-indicator">
                     <div class="status-dot" id="conn-dot"></div>
                     <span id="conn-status">Disconnected</span>
+                    <span class="ready-tag" id="ready-tag">MCU: —</span>
                 </div>
                 <button class="motor-toggle enable" id="motor-btn" onclick="toggleMotors()">
                     Enable Motors
@@ -171,233 +226,219 @@
             </div>
 
             <div class="speed-bar">
-                <label>Speed:</label>
+                <label>Jog speed:</label>
                 <button class="speed-btn" id="speed-slow" onclick="setSpeed('slow')">Slow</button>
-                <button class="speed-btn active" id="speed-med" onclick="setSpeed('medium')">Medium</button>
-                <button class="speed-btn" id="speed-max" onclick="setSpeed('max')">Max</button>
+                <button class="speed-btn active" id="speed-medium" onclick="setSpeed('medium')">Medium</button>
+                <button class="speed-btn" id="speed-fast" onclick="setSpeed('fast')">Fast</button>
+                <span class="speed-note" id="speed-note">15 &deg;/s &middot; 15 mm/s</span>
             </div>
 
             <div class="actions">
-                <button class="action-btn" onclick="setHome()">Set Home</button>
-                <button class="action-btn" onclick="goHome()">Go to Home</button>
-                <button class="action-btn" onclick="clearQueue()">Clear Queue</button>
-                <button class="action-btn demo-btn" onclick="runIKDemo()">IK Demo</button>
+                <button class="action-btn" onclick="setHome()">Set Home (zero here)</button>
+                <button class="action-btn" onclick="goHome()">Go to Home (0)</button>
+                <button class="action-btn recover" onclick="recover()">Recover (Restart MCU)</button>
                 <button class="estop-btn" id="estop-btn" onclick="eStop()">E-STOP</button>
             </div>
 
-            <!-- Joints -->
-            <div class="joint-panel" id="joint-0-panel">
-                <div class="joint-header">
-                    <h3>Joint 0 (Base) <span class="board-tag">RAMPS+S42C</span></h3>
-                    <div><span class="joint-position" id="pos-0">0</span><span class="joint-degrees" id="deg-0">0.0°</span></div>
+            <!-- Gripper -->
+            <div class="gripper-panel">
+                <h3>Gripper</h3>
+                <div class="gripper-row">
+                    <button class="jog-btn" onclick="setGripper(50)">Open (50&deg;)</button>
+                    <button class="jog-btn" onclick="setGripper(120)">Close (120&deg;)</button>
+                    <input type="range" id="gripper-slider" min="50" max="120" value="85"
+                           oninput="onGripperSlider(this.value)">
+                    <span class="gripper-val" id="gripper-val">85&deg;</span>
                 </div>
-                <div class="joint-controls" id="ctrl-0"></div>
-            </div>
-            <div class="joint-panel" id="joint-1-panel">
-                <div class="joint-header">
-                    <h3>Joint 1 (Shoulder) <span class="board-tag">RAMPS+S42C</span></h3>
-                    <div><span class="joint-position" id="pos-1">0</span><span class="joint-degrees" id="deg-1">0.0°</span></div>
-                </div>
-                <div class="joint-controls" id="ctrl-1"></div>
-            </div>
-            <div class="joint-panel" id="joint-2-panel">
-                <div class="joint-header">
-                    <h3>Joint 2 (Elbow) <span class="board-tag">RAMPS+S42C</span></h3>
-                    <div><span class="joint-position" id="pos-2">0</span><span class="joint-degrees" id="deg-2">0.0°</span></div>
-                </div>
-                <div class="joint-controls" id="ctrl-2"></div>
-            </div>
-            <div class="joint-panel" id="joint-3-panel">
-                <div class="joint-header">
-                    <h3>Joint 3 (Wrist Pitch) <span class="board-tag">RAMPS+S42C</span></h3>
-                    <div><span class="joint-position" id="pos-3">0</span><span class="joint-degrees" id="deg-3">0.0°</span></div>
-                </div>
-                <div class="joint-controls" id="ctrl-3"></div>
             </div>
 
-            <div class="board-divider">Board 2 — RAMPS (waiting for hardware)</div>
-
-            <div class="joint-panel disabled" id="joint-4-panel">
-                <div class="joint-header">
-                    <h3>Joint 4 (Wrist Roll) <span class="board-tag">RAMPS</span></h3>
-                    <div><span class="joint-position" id="pos-4">0</span><span class="joint-degrees" id="deg-4">0.0°</span></div>
-                </div>
-                <div class="joint-controls" id="ctrl-4"></div>
-            </div>
-            <div class="joint-panel disabled" id="joint-5-panel">
-                <div class="joint-header">
-                    <h3>Joint 5 (Wrist Yaw) <span class="board-tag">RAMPS</span></h3>
-                    <div><span class="joint-position" id="pos-5">0</span><span class="joint-degrees" id="deg-5">0.0°</span></div>
-                </div>
-                <div class="joint-controls" id="ctrl-5"></div>
-            </div>
-
+            <!-- Joint panels are built by JS -->
+            <div id="joints"></div>
         </div>
 
-        <div class="queue-column">
-            <div class="queue-panel">
-                <div class="queue-header">
-                    <h3>Motion Queue</h3>
-                    <span class="queue-count" id="queue-count">0 pending</span>
+        <div class="side-column">
+            <div class="side-panel">
+                <h3>Status</h3>
+                <div class="info-row"><span class="k">Klipper</span><span class="v" id="st-klipper">—</span></div>
+                <div class="info-row"><span class="k">Motors</span><span class="v" id="st-motors">—</span></div>
+                <div class="info-row"><span class="k">Moving</span><span class="v" id="st-moving">—</span></div>
+                <div class="info-row"><span class="k">G-code axes</span><span class="v" id="st-axes">—</span></div>
+            </div>
+            <div class="side-panel">
+                <h3>Cartesian (IK)</h3>
+                <div class="info-row"><span class="k">Tool X</span><span class="v" id="ee-x">—</span></div>
+                <div class="info-row"><span class="k">Tool Y</span><span class="v" id="ee-y">—</span></div>
+                <div class="info-row"><span class="k">Tool Z</span><span class="v" id="ee-z">—</span></div>
+                <div class="info-row"><span class="k">Tool RPY</span><span class="v" id="ee-rpy">—</span></div>
+                <div class="cart-grid">
+                    <label>X<input type="number" id="cart-x" step="1"></label>
+                    <label>Y<input type="number" id="cart-y" step="1"></label>
+                    <label>Z<input type="number" id="cart-z" step="1"></label>
+                    <label>Roll<input type="number" id="cart-roll" step="1" placeholder="free"></label>
+                    <label>Pitch<input type="number" id="cart-pitch" step="1" placeholder="free"></label>
+                    <label>Yaw<input type="number" id="cart-yaw" step="1" placeholder="free"></label>
                 </div>
-                <div class="queue-list" id="queue-list">
-                    <div class="queue-empty">No moves queued</div>
+                <div class="cart-actions">
+                    <button onclick="fillCartesianFromCurrent()">Use current</button>
+                    <button onclick="moveCartesian()">Move to pose</button>
+                </div>
+                <div class="cart-note">Arm only &mdash; the rail moves separately. Leave
+                    roll/pitch/yaw blank for a position-only move (orientation free).</div>
+            </div>
+            <div class="side-panel">
+                <h3>Waypoints</h3>
+                <div class="wp-save">
+                    <input type="text" id="wp-name" placeholder="Name this pose" maxlength="40"
+                           onkeydown="if(event.key==='Enter')saveWaypoint()">
+                    <button onclick="saveWaypoint()">Save pose</button>
+                </div>
+                <div class="wp-list" id="wp-list"><div class="wp-empty">No waypoints saved</div></div>
+            </div>
+            <div class="side-panel log-panel">
+                <h3>Activity</h3>
+                <div class="log-list" id="log-list">
+                    <div class="log-empty">No commands yet</div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- Configuration ---
-        const NUM_JOINTS = 6;
-        const BOARD1_JOINTS = 4;
-        const STEPS_PER_REV = 83028;
-        const STEPS_PER_DEG = STEPS_PER_REV / 360;
+        // ============ Joint model (matches KlipperBoard, index 0 = rail) ============
+        // Units: rail is mm, all rotary joints are degrees. Ranges = soft limits.
+        const JOINTS = [
+            { name: 'Linear Rail',    axis: 'W', unit: 'mm', jogs: [1, 10, 50],       min: 0,    max: 406, rail: true },
+            { name: 'J0 Base',        axis: 'A', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -180, max: 180 },
+            { name: 'J1 Shoulder',    axis: 'B', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -90,  max: 90 },
+            { name: 'J2 Elbow',       axis: 'C', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -150, max: 150 },
+            { name: 'J3 Wrist Pitch', axis: 'D', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -120, max: 120 },
+            { name: 'J4 Wrist Roll',  axis: 'H', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -90,  max: 90 },
+            { name: 'J5 Wrist Yaw',   axis: 'U', unit: '\u00B0', jogs: [1, 5, 10, 30, 90], min: -180, max: 180 },
+        ];
+        const NUM_JOINTS = JOINTS.length;
 
-        // Speed profiles: step_delay in microseconds sent to firmware
-        const SPEEDS = {
-            slow:   { delay: 200, label: 'Slow' },
-            medium: { delay: 80,  label: 'Medium' },
-            max:    { delay: 20,  label: 'Max' },
-        };
+        // Jog speed profiles (deg/s for rotary, mm/s for the rail — same numeric value)
+        const SPEEDS = { slow: 5, medium: 15, fast: 40 };
         let currentSpeed = 'medium';
 
-        // --- State ---
+        // ============ State ============
         let ws = null;
         let motorsEnabled = false;
-        let currentPos = new Array(NUM_JOINTS).fill(0);
-        let pendingTarget = new Array(NUM_JOINTS).fill(0);
-        let demoRunning = false;
-        let serverMoving = false;
-        let serverQueueDepth = 0;
+        let klipperReady = false;
+        let position = new Array(NUM_JOINTS).fill(0);
 
-        // --- Motion Queue (client-side tracking) ---
-        const motionQueue = [];
-        let queueIdCounter = 0;
-        const MAX_QUEUE_DISPLAY = 30;
-
-        // --- WebSocket Connection ---
+        // ============ WebSocket ============
         function connect() {
             const url = document.getElementById('ws-url').value;
-            if (ws) ws.close();
-
+            if (ws) { ws.onclose = null; ws.close(); }
             ws = new WebSocket(url);
 
-            ws.onopen = function() {
+            ws.onopen = () => {
                 document.getElementById('conn-dot').classList.add('connected');
                 document.getElementById('conn-status').textContent = 'Connected';
+                send({ cmd: 'get_state' });
+                send({ cmd: 'list_waypoints' });
             };
-
-            ws.onmessage = function(event) {
-                handleServerMessage(JSON.parse(event.data));
-            };
-
-            ws.onerror = function() {
+            ws.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
+            ws.onerror = () => {
                 document.getElementById('conn-dot').classList.remove('connected');
                 document.getElementById('conn-status').textContent = 'Error';
             };
-
-            ws.onclose = function() {
+            ws.onclose = () => {
                 document.getElementById('conn-dot').classList.remove('connected');
                 document.getElementById('conn-status').textContent = 'Disconnected';
-                // Auto-reconnect after 3 seconds
-                setTimeout(() => {
-                    if (!ws || ws.readyState === WebSocket.CLOSED) connect();
-                }, 3000);
+                setReadyTag(false, false);
+                setTimeout(() => { if (!ws || ws.readyState === WebSocket.CLOSED) connect(); }, 3000);
             };
         }
 
         function send(msg) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(msg));
-            }
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
         }
 
-        // --- Server Message Handling ---
         function handleServerMessage(msg) {
             switch (msg.type) {
-                case 'state':
-                    handleState(msg);
-                    break;
-                case 'halt':
-                    handleHalt(msg);
-                    break;
-                case 'ack':
-                    handleAck(msg);
-                    break;
-                case 'error':
-                    console.warn('Server error:', msg.message);
-                    break;
-                case 'reset':
-                    handleReset(msg);
-                    break;
-                case 'queue_cleared':
-                    handleQueueCleared(msg);
-                    break;
+                case 'state': handleState(msg); break;
+                case 'ack':   handleAck(msg); break;
+                case 'halt':  handleHalt(msg); break;
+                case 'waypoints': renderWaypoints(msg.waypoints || []); break;
+                case 'error': log('error: ' + msg.message, 'error'); break;
             }
         }
 
         function handleState(msg) {
-            motorsEnabled = msg.enabled;
-            serverMoving = msg.moving;
-            serverQueueDepth = msg.queue_depth;
-
-            // Update position from server (authoritative)
-            for (let i = 0; i < NUM_JOINTS; i++) {
-                currentPos[i] = msg.position[i];
-                pendingTarget[i] = msg.pending_target[i];
+            motorsEnabled = !!msg.enabled;
+            klipperReady = !!msg.klipper_ready;
+            if (Array.isArray(msg.position)) {
+                for (let i = 0; i < NUM_JOINTS; i++) position[i] = msg.position[i] ?? 0;
             }
-            updateDisplay();
-            updateMotorButton(msg.enabled);
+            updatePositions();
+            updateMotorButton(motorsEnabled);
+            setReadyTag(true, klipperReady);
 
-            // Update queue display from server state
-            document.getElementById('queue-count').textContent =
-                msg.queue_depth > 0 ? `${msg.queue_depth} pending` : (msg.moving ? '1 moving' : '0 pending');
+            // Side panel status
+            document.getElementById('st-klipper').textContent = klipperReady ? 'ready' : 'not ready';
+            document.getElementById('st-motors').textContent = motorsEnabled ? 'enabled' : 'disabled';
+            document.getElementById('st-moving').textContent = msg.moving ? 'yes' : 'no';
+            document.getElementById('st-axes').textContent = msg.axes_registered ? 'registered (G1)' : 'jog mode';
+
+            updateEndEffector(msg.end_effector);
+        }
+
+        // ============ Cartesian / IK ============
+        let lastEndEffector = null;
+
+        function updateEndEffector(ee) {
+            if (!ee) return;
+            lastEndEffector = ee;
+            document.getElementById('ee-x').textContent = ee.x.toFixed(1) + ' mm';
+            document.getElementById('ee-y').textContent = ee.y.toFixed(1) + ' mm';
+            document.getElementById('ee-z').textContent = ee.z.toFixed(1) + ' mm';
+            document.getElementById('ee-rpy').textContent =
+                `${ee.roll.toFixed(0)}, ${ee.pitch.toFixed(0)}, ${ee.yaw.toFixed(0)}\u00B0`;
+        }
+
+        function fillCartesianFromCurrent() {
+            if (!lastEndEffector) { log('no end-effector pose yet', 'error'); return; }
+            document.getElementById('cart-x').value = lastEndEffector.x.toFixed(1);
+            document.getElementById('cart-y').value = lastEndEffector.y.toFixed(1);
+            document.getElementById('cart-z').value = lastEndEffector.z.toFixed(1);
+        }
+
+        function moveCartesian() {
+            if (!motorsEnabled) { log('enable motors first', 'error'); return; }
+            const x = parseFloat(document.getElementById('cart-x').value);
+            const y = parseFloat(document.getElementById('cart-y').value);
+            const z = parseFloat(document.getElementById('cart-z').value);
+            if ([x, y, z].some(v => Number.isNaN(v))) {
+                log('enter numeric X, Y, Z', 'error');
+                return;
+            }
+            const msg = { cmd: 'move_cartesian', x: x, y: y, z: z, speed: SPEEDS[currentSpeed] };
+            // Orientation is optional; include only the fields that are filled in.
+            for (const key of ['roll', 'pitch', 'yaw']) {
+                const raw = document.getElementById('cart-' + key).value;
+                if (raw !== '') {
+                    const val = parseFloat(raw);
+                    if (!Number.isNaN(val)) msg[key] = val;
+                }
+            }
+            if (!confirm(`Move the arm to (${x.toFixed(0)}, ${y.toFixed(0)}, ${z.toFixed(0)}) mm?\n` +
+                         `All six arm joints will move (the rail stays put).`)) return;
+            send(msg);
+            log(`move_cartesian ${x.toFixed(0)},${y.toFixed(0)},${z.toFixed(0)}`, 'sent');
         }
 
         function handleHalt(msg) {
             motorsEnabled = false;
-            demoRunning = false;
-
-            // Clear client-side queue
-            motionQueue.length = 0;
-            renderQueue();
             updateMotorButton(false);
-
-            // Visual feedback
-            const el = msg.joint !== null
-                ? document.getElementById('joint-' + msg.joint + '-panel')
-                : document.querySelector('.status-bar');
-            if (el) {
-                el.style.boxShadow = '0 0 20px #e74c3c';
-                setTimeout(() => { el.style.boxShadow = ''; }, 2000);
-            }
-
-            alert(msg.message);
+            const bar = document.querySelector('.status-bar');
+            bar.style.boxShadow = '0 0 20px #e74c3c';
+            setTimeout(() => { bar.style.boxShadow = ''; }, 2000);
+            log('HALT: ' + (msg.message || 'E-STOP'), 'error');
         }
 
-        function handleAck(msg) {
-            // Update queue item status if we're tracking it
-            const item = motionQueue.find(m => m.serverId === msg.id);
-            if (item) {
-                item.status = msg.status === 'ok' ? 'complete' : msg.status;
-                renderQueue();
-            }
-        }
-
-        function handleReset(msg) {
-            currentPos.fill(0);
-            pendingTarget.fill(0);
-            updateDisplay();
-            alert(`Firmware reset: ${msg.message}`);
-        }
-
-        function handleQueueCleared(msg) {
-            motionQueue.length = 0;
-            renderQueue();
-        }
-
-        // --- Motor Control ---
+        // ============ Motor control ============
         function updateMotorButton(enabled) {
             const btn = document.getElementById('motor-btn');
             btn.textContent = enabled ? 'Disable Motors' : 'Enable Motors';
@@ -405,188 +446,201 @@
             btn.classList.toggle('disable', enabled);
         }
 
+        function setReadyTag(connected, ready) {
+            const t = document.getElementById('ready-tag');
+            if (!connected) { t.textContent = 'MCU: \u2014'; t.className = 'ready-tag'; return; }
+            t.textContent = ready ? 'MCU: Ready' : 'MCU: Shutdown';
+            t.className = 'ready-tag ' + (ready ? 'ready' : 'shutdown');
+        }
+
         let enableDebounce = false;
         function toggleMotors() {
             if (!ws || ws.readyState !== WebSocket.OPEN || enableDebounce) return;
-            enableDebounce = true;
-            setTimeout(() => { enableDebounce = false; }, 500);
-
-            if (motorsEnabled) {
-                send({ cmd: 'disable' });
-            } else {
-                send({ cmd: 'enable' });
-            }
+            enableDebounce = true; setTimeout(() => enableDebounce = false, 500);
+            send({ cmd: motorsEnabled ? 'disable' : 'enable' });
+            log(motorsEnabled ? 'disable' : 'enable', 'sent');
         }
 
-        // --- Jog ---
+        // ============ Jog (relative, in deg / mm) ============
         function jog(joint, delta) {
-            if (!ws || ws.readyState !== WebSocket.OPEN || !motorsEnabled) return;
-            send({ cmd: 'jog', joint: joint, delta: delta });
-
-            // Optimistic queue display
-            const deg = stepsToDeg(delta);
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!motorsEnabled) { log('enable motors first', 'error'); return; }
+            const speed = SPEEDS[currentSpeed];
+            send({ cmd: 'jog', joint: joint, delta: delta, speed: speed });
+            const j = JOINTS[joint];
             const sign = delta > 0 ? '+' : '';
-            motionQueue.push({
-                id: ++queueIdCounter,
-                label: `J${joint} ${sign}${deg}\u00B0`,
-                status: 'queued'
-            });
-            renderQueue();
+            log(`${j.name} ${sign}${delta}${j.unit}`, 'sent');
         }
 
-        // --- Actions ---
-        function setSpeed(speed) {
-            currentSpeed = speed;
-            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('speed-' + (speed === 'medium' ? 'med' : speed)).classList.add('active');
-            send({ cmd: 'set_speed', delay_us: SPEEDS[speed].delay });
+        // ============ Gripper ============
+        function setGripper(angle) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            angle = Math.max(0, Math.min(180, Math.round(angle)));
+            document.getElementById('gripper-slider').value = angle;
+            document.getElementById('gripper-val').innerHTML = angle + '\u00B0';
+            send({ cmd: 'gripper', angle: angle });
+            log('gripper ' + angle + '\u00B0', 'sent');
+        }
+        let gripperDebounce = null;
+        function onGripperSlider(val) {
+            document.getElementById('gripper-val').innerHTML = val + '\u00B0';
+            clearTimeout(gripperDebounce);
+            gripperDebounce = setTimeout(() => setGripper(parseInt(val, 10)), 120);
         }
 
+        // ============ Home / recover / e-stop ============
         function setHome() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             send({ cmd: 'set_home' });
-            currentPos.fill(0);
-            pendingTarget.fill(0);
-            updateDisplay();
-            motionQueue.length = 0;
-            renderQueue();
+            log('set_home', 'sent');
         }
 
+        // Go to home = jog each joint back to 0 (uses MANUAL_STEPPER, keeps jog mode).
         function goHome() {
-            if (!ws || ws.readyState !== WebSocket.OPEN || !motorsEnabled) return;
-            send({ cmd: 'go_home' });
-            motionQueue.push({
-                id: ++queueIdCounter,
-                label: 'Go Home',
-                status: 'queued'
-            });
-            renderQueue();
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!motorsEnabled) { log('enable motors first', 'error'); return; }
+            for (let i = 0; i < NUM_JOINTS; i++) {
+                const delta = -position[i];
+                if (Math.abs(delta) > 0.01) jog(i, +delta.toFixed(3));
+            }
+        }
+
+        function recover() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            send({ cmd: 'firmware_restart' });
+            log('firmware_restart', 'sent');
         }
 
         function eStop() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             send({ cmd: 'estop' });
-
             motorsEnabled = false;
-            demoRunning = false;
-            motionQueue.length = 0;
-            renderQueue();
             updateMotorButton(false);
-            document.querySelector('.demo-btn').textContent = 'IK Demo';
-            document.querySelector('.demo-btn').classList.remove('running');
+            log('E-STOP', 'error');
         }
 
-        function clearQueue() {
-            for (let i = motionQueue.length - 1; i >= 0; i--) {
-                if (motionQueue[i].status === 'queued') motionQueue.splice(i, 1);
-            }
-            renderQueue();
+        // ============ Waypoints ============
+        function saveWaypoint() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const input = document.getElementById('wp-name');
+            const name = input.value.trim();
+            if (!name) { log('enter a waypoint name', 'error'); return; }
+            send({ cmd: 'save_waypoint', name: name });
+            log('save_waypoint ' + name, 'sent');
+            input.value = '';
         }
 
-        // --- IK Demo ---
-        const ikSequence = [
-            { j: [0, 0, 0, 0], label: 'Home' },
-            { j: [0, -45, -60, -30], label: 'Approach' },
-            { j: [0, -70, -90, -50], label: 'Reach down' },
-            { j: [0, -85, -120, -70], label: 'Pick' },
-            { j: [0, -50, -60, -30], label: 'Lift' },
-            { j: [90, -50, -60, -30], label: 'Rotate' },
-            { j: [90, -75, -100, -55], label: 'Place' },
-            { j: [90, -50, -60, -30], label: 'Retract' },
-            { j: [45, -20, -30, -10], label: 'Transit' },
-            { j: [0, 0, 0, 0], label: 'Home' },
-            { j: [-60, -30, 45, 20], label: 'Look left' },
-            { j: [60, -30, 45, 20], label: 'Look right' },
-            { j: [0, 45, 90, 60], label: 'Reach up' },
-            { j: [0, 0, 0, 0], label: 'Home' },
-        ];
-
-        async function runIKDemo() {
-            if (!ws || ws.readyState !== WebSocket.OPEN || !motorsEnabled || demoRunning) return;
-            demoRunning = true;
-            const demoBtn = document.querySelector('.demo-btn');
-            demoBtn.textContent = 'Running...';
-            demoBtn.classList.add('running');
-
-            for (const pose of ikSequence) {
-                if (!demoRunning) break;
-                const target = pose.j.map(d => degToSteps(d));
-                send({ cmd: 'move', target: target });
-                motionQueue.push({
-                    id: ++queueIdCounter,
-                    label: pose.label,
-                    status: 'queued'
-                });
-                renderQueue();
-            }
-
-            // Wait for all moves to complete (poll server state)
-            while (demoRunning) {
-                await new Promise(r => setTimeout(r, 500));
-                if (!serverMoving && serverQueueDepth === 0) break;
-            }
-
-            demoRunning = false;
-            demoBtn.textContent = 'IK Demo';
-            demoBtn.classList.remove('running');
+        function gotoWaypoint(name) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!motorsEnabled) { log('enable motors first', 'error'); return; }
+            if (!confirm(`Move the arm to waypoint "${name}"?\nAll joints will move to the saved pose.`)) return;
+            send({ cmd: 'goto_waypoint', name: name, speed: SPEEDS[currentSpeed] });
+            log('goto_waypoint ' + name, 'sent');
         }
 
-        // --- Queue Display ---
-        function renderQueue() {
-            const list = document.getElementById('queue-list');
-            const count = document.getElementById('queue-count');
-            const pending = motionQueue.filter(m => m.status !== 'complete').length;
-            count.textContent = `${pending} pending`;
+        function deleteWaypoint(name) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!confirm(`Delete waypoint "${name}"?`)) return;
+            send({ cmd: 'delete_waypoint', name: name });
+            log('delete_waypoint ' + name, 'sent');
+        }
 
-            while (motionQueue.length > MAX_QUEUE_DISPLAY) {
-                if (motionQueue[0].status === 'complete') motionQueue.shift();
-                else break;
-            }
-            if (motionQueue.length === 0) {
-                list.innerHTML = '<div class="queue-empty">No moves queued</div>';
+        function renderWaypoints(list) {
+            const el = document.getElementById('wp-list');
+            if (!list || list.length === 0) {
+                el.innerHTML = '<div class="wp-empty">No waypoints saved</div>';
                 return;
             }
-            list.innerHTML = [...motionQueue].reverse().map(item =>
-                `<div class="queue-item ${item.status}"><span>${item.label}</span><span class="status-badge">${item.status}</span></div>`
-            ).join('');
+            el.innerHTML = list.map(wp => {
+                const pose = (wp.positions || []).map((p, i) =>
+                    `${Number(p).toFixed(0)}${JOINTS[i] ? JOINTS[i].unit : ''}`).join(' \u00B7 ');
+                const grip = (wp.gripper !== null && wp.gripper !== undefined)
+                    ? ` \u00B7 grip ${wp.gripper}\u00B0` : '';
+                const safe = escapeHtml(wp.name);
+                const jsName = wp.name.replace(/'/g, "\\'");
+                return `<div class="wp-item">
+                    <div class="wp-name">${safe}</div>
+                    <div class="wp-pose">${pose}${grip}</div>
+                    <div class="wp-actions">
+                        <button class="wp-btn go" onclick="gotoWaypoint('${jsName}')">Go</button>
+                        <button class="wp-btn del" onclick="deleteWaypoint('${jsName}')">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
-        // --- Speed Control ---
-        // (already handled by setSpeed above)
-
-        // --- Jog Buttons ---
-        function buildJogButtons() {
-            const jogSteps = [
-                { label: '360\u00B0', steps: 83028 },
-                { label: '90\u00B0',  steps: 20757 },
-                { label: '30\u00B0',  steps: 6919 },
-                { label: '10\u00B0',  steps: 2306 },
-                { label: '1\u00B0',   steps: 231 },
-            ];
-            for (let j = 0; j < NUM_JOINTS; j++) {
-                const container = document.getElementById('ctrl-' + j);
-                let html = '';
-                for (const s of jogSteps)
-                    html += `<button class="jog-btn negative" onclick="jog(${j},-${s.steps})">-${s.label}</button>`;
-                html += '<div class="spacer"></div>';
-                for (const s of [...jogSteps].reverse())
-                    html += `<button class="jog-btn" onclick="jog(${j},${s.steps})">+${s.label}</button>`;
-                container.innerHTML = html;
-            }
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
-        // --- Helpers ---
-        function stepsToDeg(steps) { return (steps / STEPS_PER_DEG).toFixed(1); }
-        function degToSteps(deg) { return Math.round(deg * STEPS_PER_DEG); }
-        function updateDisplay() {
+        // ============ Speed ============
+        function setSpeed(profile) {
+            currentSpeed = profile;
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('speed-' + profile).classList.add('active');
+            const v = SPEEDS[profile];
+            document.getElementById('speed-note').innerHTML = `${v} &deg;/s &middot; ${v} mm/s`;
+        }
+
+        // ============ Rendering ============
+        function buildJoints() {
+            const root = document.getElementById('joints');
+            root.innerHTML = JOINTS.map((j, i) => {
+                let neg = '', pos = '';
+                for (const s of j.jogs) neg = `<button class="jog-btn negative" onclick="jog(${i},-${s})">-${s}${j.unit}</button>` + neg;
+                for (const s of j.jogs) pos += `<button class="jog-btn" onclick="jog(${i},${s})">+${s}${j.unit}</button>`;
+                return `
+                <div class="joint-panel ${j.rail ? 'rail' : ''}">
+                    <div class="joint-header">
+                        <h3>${j.name}<span class="range-tag">${j.min}\u2026${j.max} ${j.unit}</span></h3>
+                        <span class="joint-position" id="pos-${i}">0.0 ${j.unit}</span>
+                    </div>
+                    <div class="joint-controls">${neg}<div class="spacer"></div>${pos}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function updatePositions() {
             for (let i = 0; i < NUM_JOINTS; i++) {
-                document.getElementById('pos-' + i).textContent = currentPos[i];
-                document.getElementById('deg-' + i).textContent = stepsToDeg(currentPos[i]) + '\u00B0';
+                const el = document.getElementById('pos-' + i);
+                if (el) el.textContent = `${position[i].toFixed(1)} ${JOINTS[i].unit}`;
             }
         }
 
-        // --- Init ---
-        window.addEventListener('load', () => { buildJogButtons(); connect(); });
+        // ============ Activity log ============
+        const logItems = [];
+        const MAX_LOG = 40;
+        function log(text, kind) {
+            logItems.unshift({ text, kind: kind || 'sent', t: new Date() });
+            while (logItems.length > MAX_LOG) logItems.pop();
+            renderLog();
+        }
+        function logResult(cmd, status) {
+            // Attach ack status to the most recent 'sent' entry, else add a line
+            log(`${cmd}: ${status}`, status === 'ok' ? 'ok' : 'error');
+        }
+        function handleAck(msg) {
+            if (msg.cmd === 'move_cartesian') {
+                if (msg.end_effector) updateEndEffector(msg.end_effector);
+                const err = (msg.position_error_mm ?? 0).toFixed(1);
+                log(`move_cartesian: ${msg.status} (err ${err} mm)`,
+                    msg.status === 'ok' ? 'ok' : 'error');
+                return;
+            }
+            logResult(msg.cmd, msg.status);
+        }
+        function renderLog() {
+            const list = document.getElementById('log-list');
+            if (logItems.length === 0) { list.innerHTML = '<div class="log-empty">No commands yet</div>'; return; }
+            list.innerHTML = logItems.map(it => {
+                const ts = it.t.toLocaleTimeString([], { hour12: false });
+                return `<div class="log-item ${it.kind}"><span>${ts} ${it.text}</span><span class="badge">${it.kind}</span></div>`;
+            }).join('');
+        }
+
+        // ============ Init ============
+        window.addEventListener('load', () => { buildJoints(); setSpeed('medium'); connect(); });
     </script>
 </body>
 </html>

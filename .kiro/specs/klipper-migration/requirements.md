@@ -190,6 +190,10 @@ bootloader at `0x08000000`, all future Klipper updates are fully automated:
 Klipper tells MCU to reboot into Katapult, Katapult accepts new firmware over USB, MCU reboots
 into new Klipper. No button press, no DFU mode, no USB re-enumeration.
 **BOOT0 button only needed ONCE** (initial Katapult flash). Keep accessible for brick recovery.
+> **⚠️ Reality (2026-07-31): this buttonless path does NOT work on the current Katapult build.**
+> See EC11. Katapult installs and boots Klipper fine, but its flash-WRITE routine faults on this
+> H723 version, so `flashtool.py` cannot deliver updates. Until resolved, the working update
+> path is ROM DFU (BOOT0+RESET) + `dfu-util`.
 
 ### EC9: Klipper Version Requirement
 `GCODE_AXIS` for manual_stepper was added May 2025. Older versions lack coordinated motion.
@@ -202,3 +206,23 @@ single `!` byte over direct serial.
 **Mitigation**: Still < 50ms total (all localhost). For time-critical safety, wire a physical
 E-STOP button directly to an MCU input pin (Klipper handles it in firmware). Or write to
 klippy's Unix socket (`/tmp/printer`) for lower latency than HTTP.
+
+### EC11: Katapult H723 Flash-Write Regression (discovered 2026-07-31)
+Katapult `v0.0.1-113-gec59b9b` installs and boots correctly on the Octopus MAX EZ (STM32H723),
+but its MCU-side flash-WRITE routine faults during the 128KiB app-sector erase: `flashtool.py`
+connects, reports `Application Start: 0x8020000`, then fails on the first block with
+`Error sending command [SEND_BLOCK] to Device` / `Flash write failed, flash address 0x8020000`,
+and the board drops off USB (MCU fault — not merely a client timeout; our flashtool already has
+the Jul-2025 timeout increase). Matches upstream issue #128 (STM32H723). The community-cited
+"good" commit `3e23332` (Feb 2024) predates Katapult's H7 flash support (`88e208a`), so it is
+not a valid downgrade target here.
+**Impact**: Buttonless updates via Katapult (EC8) are unavailable on this build.
+**Mitigation (in effect)**: Flash Klipper via ROM DFU to the app offset, preserving Katapult:
+`sudo dfu-util -a 0 -s 0x08020000:leave -D ~/klipper/out/klipper.bin` (dfu-util erases the target
+sector first, so partial bytes from a failed Katapult write are cleaned up). Katapult stays at
+`0x08000000` as the boot/jump stage (that part works). Boot chain verified:
+reset → Katapult → Klipper @0x8020000 → klippy `ready`.
+**Decision (2026-07-31)**: accepted the ROM DFU workflow (one BOOT0+RESET per update) and dropped
+the buttonless requirement. Not bisecting Katapult. See the Firmware Update Runbook in
+`tasks.md` Phase 2. (If buttonless is ever revisited: bisect Katapult between `88e208a` H7-flash-add
+and HEAD, candidates around `94e4255` "sync stm32h7 from Klipper".)

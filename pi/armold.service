@@ -1,25 +1,27 @@
 [Unit]
 Description=Armold Motion Controller Daemon
 Documentation=https://github.com/dorfman2/Armold
-After=network.target
+After=network.target klipper.service moonraker.service
 Wants=network.target
+Requires=moonraker.service
 
 [Service]
 Type=simple
 User=pi
 Group=dialout
 WorkingDirectory=/home/pi/Armold
-ExecStart=/usr/bin/python3 -m armold_controller
+# Runs in the armold venv (virtualenv --system-site-packages) so the IK stack
+# (roboticstoolbox / scipy / spatialmath) is available on top of the apt-managed
+# numpy/pyserial/websockets/aiohttp. See scripts/deploy_controller.sh.
+ExecStart=/home/pi/armold-venv/bin/python -m armold_controller
 Restart=always
 RestartSec=3
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1
 
-# Hardening
+# Hardening (Klipper mode: no direct serial access needed)
 NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/dev/armold_einsy /dev/armold_ramps
 PrivateTmp=true
 
 [Install]

@@ -7,6 +7,8 @@ get-platformio.py
 __pycache__/
 *.pyc
 *.egg-info/
+.venv/
+venv/
 
 # ROS 2 build artifacts (Pi-side)
 build/
@@ -15,3 +17,15 @@ log/
 
 # OS
 .DS_Store
+
+# Camera snapshots (scratch) — only in repo root
+/oak_snapshot*.jpg
+/oak_snap_*.jpg
+/green_diag_*.jpg
+/pen_detect.jpg
+/stream_frame.jpg
+vision_snapshots/
+
+# Build / binary artifacts (scratch in repo root)
+/firmware.bin
+/config.json
