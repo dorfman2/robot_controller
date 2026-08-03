@@ -21,7 +21,7 @@ import json as _json  # noqa: E402
 
 # ROI as fractions of the frame (mat region near the arm; bottom raised to
 # exclude power strip / monitor / cables that caused false positives).
-ROI_FRAC = (0.20, 0.06, 0.60, 0.58)
+ROI_FRAC = (0.20, 0.16, 0.60, 0.656)
 MIN_AREA_FRAC = 0.0003
 MAX_AREA_FRAC = 0.05
 MIN_ELONG = 3.0
