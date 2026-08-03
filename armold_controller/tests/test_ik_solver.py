@@ -34,9 +34,10 @@ from armold_controller.klipper_board import DEFAULT_SOFT_LIMITS
 def test_geometry_from_proportional_dims() -> None:
     """Scaled fallback geometry reaches the spec value and is flagged estimated."""
     geo = ArmGeometry.from_proportional_dims()
-    assert (
-        abs(geo.horizontal_reach() - SPEC_MAX_REACH_MM) < 1e-6
-    ), f"reach {geo.horizontal_reach()} != {SPEC_MAX_REACH_MM}"
+    # from_proportional_dims scales the along-arm segments (wrist_yaw=0) so that
+    # upper+fore+wrist_pitch+tool matches the spec reach.
+    along_arm = geo.upper_arm + geo.fore_arm + geo.wrist_pitch_offset + geo.tool_len
+    assert abs(along_arm - SPEC_MAX_REACH_MM) < 1e-6, f"along_arm {along_arm}"
     assert geo.estimated is True
     # The proportional (single-segment wrist) fallback sets J4->J5 to zero.
     assert geo.wrist_yaw_offset == 0.0
@@ -57,14 +58,14 @@ def test_measured_geometry_is_default() -> None:
     ik = ArmIK()
     assert ik.geometry is MEASURED_GEOMETRY
     assert ik.geometry.estimated is False
-    assert ik.geometry.base_height == 70.0
-    assert ik.geometry.shoulder_height == 48.0
-    assert ik.geometry.upper_arm == 152.0
-    assert ik.geometry.fore_arm == 152.0
-    assert ik.geometry.wrist_pitch_offset == 77.0
-    assert ik.geometry.wrist_yaw_offset == 60.0
-    assert ik.geometry.tool_len == 83.0
-    assert abs(ik.geometry.horizontal_reach() - 524.0) < 1e-6
+    assert ik.geometry.base_height == 165.5
+    assert ik.geometry.shoulder_height == 63.5
+    assert ik.geometry.upper_arm == 171.0
+    assert ik.geometry.fore_arm == 171.0
+    assert ik.geometry.wrist_pitch_offset == 86.0
+    assert ik.geometry.wrist_yaw_offset == 62.0
+    assert ik.geometry.tool_len == 81.0
+    assert abs(ik.geometry.horizontal_reach() - 490.0) < 1e-6
     print("PASS: test_measured_geometry_is_default")
 
 
@@ -100,6 +101,8 @@ def test_fk_zero_pose_points_up() -> None:
     ik = ArmIK()
     pose = ik.fk([0.0] * NUM_ARM_JOINTS)
     geo = ik.geometry
+    # Arm (up to J5) points straight up; the tool points sideways +Y, so the
+    # tip is offset +tool_len in Y and does not add to Z.
     expected_z = (
         geo.base_height
         + geo.shoulder_height
@@ -107,10 +110,9 @@ def test_fk_zero_pose_points_up() -> None:
         + geo.fore_arm
         + geo.wrist_pitch_offset
         + geo.wrist_yaw_offset
-        + geo.tool_len
     )
-    assert abs(pose.x) < 1e-6, f"x {pose.x} != 0"
-    assert abs(pose.y) < 1e-6, f"y {pose.y} != 0"
+    assert abs(pose.x) < 1e-3, f"x {pose.x} != 0"
+    assert abs(pose.y - geo.tool_len) < 1e-3, f"y {pose.y} != {geo.tool_len}"
     assert abs(pose.z - expected_z) < 1e-3, f"z {pose.z} != {expected_z}"
     print("PASS: test_fk_zero_pose_points_up")
 
@@ -119,9 +121,9 @@ def test_fk_home_pose_landmark() -> None:
     """Home-pose FK matches the measured-geometry landmark (~242, 0, 366)."""
     ik = ArmIK()
     pose = ik.fk(list(HOME_POSE_DEG))
-    assert abs(pose.x - 241.7) < 1.0, f"x {pose.x}"
-    assert abs(pose.y - 0.0) < 1e-6, f"y {pose.y}"
-    assert abs(pose.z - 366.1) < 1.0, f"z {pose.z}"
+    assert abs(pose.x - (-327.9)) < 1.0, f"x {pose.x}"
+    assert abs(pose.y - 81.0) < 1.0, f"y {pose.y}"
+    assert abs(pose.z - 219.2) < 1.0, f"z {pose.z}"
     print("PASS: test_fk_home_pose_landmark")
 
 
@@ -141,7 +143,9 @@ def test_max_reach_horizontal() -> None:
     ik = ArmIK()
     pose = ik.fk([0.0, 90.0, 0.0, 0.0, 0.0, 0.0])
     horizontal = float(np.hypot(pose.x, pose.y))
-    expected = ik.geometry.horizontal_reach()
+    # Tip hypot includes the perpendicular tool offset (+Y): sqrt(reach^2+tool^2).
+    reach = ik.geometry.horizontal_reach()
+    expected = (reach**2 + ik.geometry.tool_len**2) ** 0.5
     assert abs(horizontal - expected) < 1.0, f"reach {horizontal} != {expected}"
     print("PASS: test_max_reach_horizontal")
 

@@ -150,26 +150,29 @@ inclusion: always
 | J4 | Wrist Yaw | Z-yaw | Z-yaw (`0 0 1`) | ±90° | 0° |
 | J5 | Wrist Roll | Y-roll | X-roll (`1 0 0`) | ±180° | 0° |
 
-## Armold Physical Link Lengths (Measured 2026-07-31)
+## Armold Kinematic Model (in-situ measured + hardware-verified, 2026-08-02)
 
-Real measured segment lengths along the kinematic chain (mm). These supersede
-the proportional Armold_FK_v1 DIMS estimates and are baked into
-`ik_solver.MEASURED_GEOMETRY` (the default `ArmIK` geometry, `estimated=False`).
+Corrected model in `ik_solver.MEASURED_GEOMETRY` (default `ArmIK`,
+`estimated=False`). **Desk-referenced**: ETS origin at the desk surface, so FK z
+is height above the desk (desk = z 0). Earlier estimates (70/48/152/152/77/60/83,
+tool-along-arm, no sign flips) were ALL wrong and are superseded.
 
 | Segment | Length (mm) | ArmGeometry field |
 |---------|-------------|-------------------|
-| base of arm → J0 | 70 | `base_height` |
-| J0 → J1 | 48 | `shoulder_height` |
-| J1 → J2 | 152 | `upper_arm` |
-| J2 → J3 | 152 | `fore_arm` |
-| J3 → J4 | 77 | `wrist_pitch_offset` |
-| J4 → J5 | 60 | `wrist_yaw_offset` |
-| J5 → gripper tip | 83 | `tool_len` |
+| desk surface → J0 | 165.5 | `base_height` |
+| J0 → J1 | 63.5 | `shoulder_height` |
+| J1 → J2 | 171 | `upper_arm` |
+| J2 → J3 | 171 | `fore_arm` |
+| J3 → J4 | 86 | `wrist_pitch_offset` |
+| J4 → J5 | 62 | `wrist_yaw_offset` |
+| J5 → tool (⊥, +Y) | 81 | `tool_len` |
 
-- **ETS chain (Z-up, offsets along local Z)**: `tz(70)·Rz[J0]·tz(48)·Ry[J1]·tz(152)·Ry[J2]·tz(152)·Ry[J3]·tz(77)·Rz[J4]·tz(60)·Rx[J5]·tz(83)`.
-- **Horizontal reach (J0 axis → tool tip)** = 152+152+77+60+83 = **524 mm** (spec sheet said 475 mm; that value is now reference-only, `SPEC_MAX_REACH_MM`).
-- **FK landmarks (measured geometry)**: zero pose = (0, 0, 642); home `[0,-30,70,50,0,0]°` = (241.7, 0, 366.1); full extension `[0,90,0,0,0,0]°` = (524, 0, 118).
-- **OPEN ITEM**: J4/J5 axis *labels* (yaw vs roll) disputed between FK-sim and Klipper config. Kinematic order used (J4 about Z, J5 about X) is correct; only the human label needs physical confirmation.
+- **ETS**: `tz(165.5)·Rz(flip)[J0]·tz(63.5)·Ry[J1]·tz(171)·Ry(flip)[J2]·tz(171)·Ry(flip)[J3]·tz(86)·Rz(flip)[J4]·tz(62)·Rx(flip)[J5]·ty(81)`.
+- **JOINT SIGNS**: J0, J2, J3, J4, J5 are inverted vs physical (`flip=True`); **J1 is the only non-inverted joint** (verified by jogging each on hardware).
+- **Tool**: `ty(+81)` — gripper points +Y sideways at J4=0, straight DOWN at J4=-90 (verified). The grip CENTER is ~41 mm above the model's finger-tip TCP.
+- **horizontal_reach()** = 490 mm (upper+fore+wrist_pitch+wrist_yaw, to J5; tool is perpendicular so excluded).
+- **FK landmarks**: zero=(0,81,719); home[0,-30,70,50,0,0]=(-327.9,81,219.2); horiz[0,-89,0,0,0,0]=(-489.9,81,237.6); pick pose [0,-89,0,0,-90,0]=(-491.3,0,156.6, gripper down). Shoulder height 229 mm (9") confirmed.
+- **Desk plane = z 0** (from J1 at 229 mm above desk minus the chain). Grasp Z ≈ 0 + a few mm.
 
 ## Transferable Analysis Patterns
 

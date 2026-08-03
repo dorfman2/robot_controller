@@ -86,8 +86,9 @@ class ArmGeometry:
     arm's construction.
 
     Attributes:
-        base_height: Fixed offset from the mounting frame up to the J0 base
-            yaw axis (mm).
+        base_height: Offset from the DESK SURFACE up to the J0 base yaw axis
+            (mm). The ETS is desk-referenced, so FK z is height above the desk
+            (desk plane = z 0).
         shoulder_height: Offset from the J0 axis up to the J1 shoulder pitch
             axis (mm).
         upper_arm: Length of the upper-arm segment, J1 to J2 (mm).
@@ -112,11 +113,11 @@ class ArmGeometry:
     estimated: bool = True
 
     def horizontal_reach(self) -> float:
-        """Maximum horizontal reach from the J0 yaw axis to the tool tip.
+        """Maximum horizontal reach from the J0 yaw axis to the wrist (J5).
 
-        Computed as the sum of every segment distal to the shoulder pitch axis
-        (upper arm through tool), which is the horizontal extent when the
-        shoulder is pitched 90 degrees and the remaining pitch joints are zero.
+        Sum of the segments distal to the shoulder pitch axis, up to J5. The
+        tool is excluded because it points down (perpendicular to the forearm),
+        so it adds height, not horizontal reach.
 
         Returns:
             Reach in millimetres.
@@ -126,7 +127,6 @@ class ArmGeometry:
             + self.fore_arm
             + self.wrist_pitch_offset
             + self.wrist_yaw_offset
-            + self.tool_len
         )
 
     @classmethod
@@ -169,16 +169,19 @@ class ArmGeometry:
         )
 
 
-# Real physical link lengths (mm) measured from the arm on 2026-07-31.
-# This is the default geometry used by ArmIK.
+# Real physical link lengths (mm) measured in-situ on 2026-08-02.
+# DESK-REFERENCED: base_height is the desk surface -> J0 yaw axis, so FK z is
+# height above the desk (desk plane = z 0). The tool points DOWN (perpendicular
+# to the forearm), modelled as tx(-tool_len) in the ETS, so it does not add to
+# horizontal reach. This is the default geometry used by ArmIK.
 MEASURED_GEOMETRY: ArmGeometry = ArmGeometry(
-    base_height=70.0,  # base of arm -> J0
-    shoulder_height=48.0,  # J0 -> J1
-    upper_arm=152.0,  # J1 -> J2
-    fore_arm=152.0,  # J2 -> J3
-    wrist_pitch_offset=77.0,  # J3 -> J4
-    wrist_yaw_offset=60.0,  # J4 -> J5
-    tool_len=83.0,  # J5 -> gripper tip
+    base_height=165.5,  # desk surface -> J0 yaw axis (J1 at 229 - J0->J1 63.5)
+    shoulder_height=63.5,  # J0 -> J1 (2.5")
+    upper_arm=171.0,  # J1 -> J2
+    fore_arm=171.0,  # J2 -> J3
+    wrist_pitch_offset=86.0,  # J3 -> J4 (3 3/8")
+    wrist_yaw_offset=62.0,  # J4 -> J5 (2 7/16")
+    tool_len=81.0,  # J5 -> gripper tip (3 3/16"), perpendicular (down)
     estimated=False,
 )
 
@@ -393,18 +396,20 @@ class ArmIK:
         """
         ets = (
             ET.tz(geometry.base_height)
-            * ET.Rz()  # J0 base yaw
+            * ET.Rz(flip=True)  # J0 base yaw (inverted vs physical)
             * ET.tz(geometry.shoulder_height)
-            * ET.Ry()  # J1 shoulder pitch
+            * ET.Ry()  # J1 shoulder pitch (only joint NOT inverted)
             * ET.tz(geometry.upper_arm)
-            * ET.Ry()  # J2 elbow pitch
+            * ET.Ry(flip=True)  # J2 elbow pitch (inverted vs physical)
             * ET.tz(geometry.fore_arm)
-            * ET.Ry()  # J3 wrist pitch
+            * ET.Ry(flip=True)  # J3 wrist pitch (inverted vs physical)
             * ET.tz(geometry.wrist_pitch_offset)
-            * ET.Rz()  # J4 wrist yaw
+            * ET.Rz(flip=True)  # J4 wrist yaw (inverted vs physical)
             * ET.tz(geometry.wrist_yaw_offset)
-            * ET.Rx()  # J5 wrist roll
-            * ET.tz(geometry.tool_len)
+            * ET.Rx(flip=True)  # J5 wrist roll (inverted vs physical)
+            # Tool points sideways +Y at J4=0 (perpendicular to the forearm);
+            # J4=-90 rotates it to point down. Verified against the hardware.
+            * ET.ty(geometry.tool_len)
         )
         return ets
 
