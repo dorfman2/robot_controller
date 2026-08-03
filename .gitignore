@@ -29,3 +29,6 @@ vision_snapshots/
 # Build / binary artifacts (scratch in repo root)
 /firmware.bin
 /config.json
+
+# Vendor manual (kept locally, not tracked)
+BIGTREETECH_S42C_user_manual.pdf
