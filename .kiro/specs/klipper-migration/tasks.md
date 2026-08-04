@@ -113,8 +113,9 @@ curl -s http://localhost:7125/printer/info   # expect state: ready
   `DEFAULT_SOFT_LIMITS` (rail 0–406 mm; J0 ±180, J1 ±90, J2 ±150, J3 ±120, J4 ±90, J5 ±180);
   `clamp_target()` applied in `jog_joint`/`move_coordinated` with warning logs; also fixed jog to be
   properly relative. 8 new unit tests (no mocks) pass. **Not yet deployed to Pi** (see below).
-- [ ] Deploy `armold_controller` to Pi + integration-test (armold.service currently failing
-  `200/CHDIR` — `/home/pi/Armold` missing; deploy will create it).
+- [x] Deploy `armold_controller` to Pi + integration-test — deployed to `/home/pi/armold-venv`,
+  runs via `armold.service` (WS 9090); soft limits + jog/move/move_cartesian validated live on
+  hardware across subsequent sessions.
 
 ## Phase 7: Validation  ✅ (2026-08-01, 1-hour soak deferred)
 - [x] Verify TMC5160 current/temp via `DUMP_TMC` — found sense_resistor missing (Klipper 0.075 default vs EZ5160's 50mOhm → ~1.5× over-current). **Fixed: `sense_resistor: 0.050` on all 7.** GLOBALSCALER now uniform (45 @0.8A, 67 @J3 1.2A). No `otpw`/`ot` flags.

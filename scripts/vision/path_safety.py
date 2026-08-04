@@ -48,5 +48,8 @@ def simulate(a: list[float], b: list[float], label: str) -> None:
 
 
 if __name__ == "__main__":
-    simulate(A, B, "direct reorient (no lift)")
-    simulate([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], B, "from HOME -> z=260 vertical")
+    simulate(
+        [0.0, -50.75, 105.24, -65.99, -90.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "hover z100 -> HOME (straight up)",
+    )

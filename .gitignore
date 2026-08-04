@@ -32,3 +32,6 @@ vision_snapshots/
 
 # Vendor manual (kept locally, not tracked)
 BIGTREETECH_S42C_user_manual.pdf
+
+# Diagnostic model renders (regenerable)
+renders/
