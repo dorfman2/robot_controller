@@ -7,6 +7,7 @@ and overlays the ROI (cyan), the detection (red box + center + angle), and the
 pixel coordinates. Open http://armold.local:8091/. Stop:
 `sudo systemctl stop oak-stream`.
 """
+
 import socketserver
 import threading
 import time
@@ -17,7 +18,7 @@ import depthai as dai
 import numpy as np
 
 PORT = 8091
-import json as _json  # noqa: E402
+import json as _json
 
 # ROI as fractions of the frame (mat region near the arm; bottom raised to
 # exclude power strip / monitor / cables that caused false positives).
@@ -125,8 +126,12 @@ def _camera_loop():
                     cv2.circle(frame, (int(fx), int(fy)), 5, (255, 0, 255), 2)
                 gx, gy = green["center"]
                 cv2.drawMarker(
-                    frame, (int(gx), int(gy)), (0, 255, 255),
-                    cv2.MARKER_CROSS, 16, 2,
+                    frame,
+                    (int(gx), int(gy)),
+                    (0, 255, 255),
+                    cv2.MARKER_CROSS,
+                    16,
+                    2,
                 )
                 cv2.putText(
                     frame,
@@ -140,7 +145,7 @@ def _camera_loop():
             (rx0, ry0, rx1, ry1), best = _detect_pen(frame)
             cv2.rectangle(frame, (rx0, ry0), (rx1, ry1), (255, 200, 0), 1)
             if best is not None:
-                box, (gcx, gcy), long_side, short_side, angle = best
+                box, (gcx, gcy), _, _, angle = best
                 cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
                 cv2.circle(frame, (int(gcx), int(gcy)), 4, (0, 0, 255), -1)
                 cv2.putText(
@@ -170,7 +175,7 @@ def _camera_loop():
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         if self.path in ("/", "/index.html"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html")

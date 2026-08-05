@@ -38,10 +38,7 @@ def main() -> None:
     x, y, bw, bh = cv2.boundingRect(c)
     print(f"frame {w}x{h}")
     print(f"mat bbox px: x0={x} y0={y} x1={x+bw} y1={y+bh}")
-    print(
-        "mat bbox frac: "
-        f"({x/w:.3f}, {y/h:.3f}, {(x+bw)/w:.3f}, {(y+bh)/h:.3f})"
-    )
+    print("mat bbox frac: " f"({x/w:.3f}, {y/h:.3f}, {(x+bw)/w:.3f}, {(y+bh)/h:.3f})")
     # Proposed ROI: inset 6% of the mat span on each edge (avoid the rail/edges).
     mx, my = int(0.06 * bw), int(0.06 * bh)
     ix0, iy0, ix1, iy1 = x + mx, y + my, x + bw - mx, y + bh - my

@@ -19,11 +19,11 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from roboticstoolbox import Robot  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+from roboticstoolbox import Robot
 
-from armold_controller.ik_solver import ArmIK  # noqa: E402
+from armold_controller.ik_solver import ArmIK
 
 # Workspace-local output folder (repo_root/renders), created on demand.
 RENDER_DIR = Path(__file__).resolve().parents[2] / "renders"
@@ -31,9 +31,11 @@ RENDER_DIR = Path(__file__).resolve().parents[2] / "renders"
 
 def main() -> None:
     """Render the given config to /tmp/target_render.png."""
-    cfg = [float(a) for a in sys.argv[1:7]] if len(sys.argv) >= 7 else [
-        0.0, -15.92, 69.62, 30.82, -90.0, -26.36
-    ]
+    cfg = (
+        [float(a) for a in sys.argv[1:7]]
+        if len(sys.argv) >= 7
+        else [0.0, -15.92, 69.62, 30.82, -90.0, -26.36]
+    )
     ik = ArmIK()
     robot = Robot(ik.ets)
     q = np.deg2rad(cfg)
@@ -44,23 +46,32 @@ def main() -> None:
     pose = ik.fk(cfg)
     ee = np.array([pose.x, pose.y, pose.z])
     # Tool approach axis = EE frame +Y column (the ty(tool_len) direction).
-    from spatialmath import SE3  # noqa: E402
+    from spatialmath import SE3
 
     r_ee = SE3(ik.ets.eval(q), check=False).R
     approach = np.asarray(r_ee[:, 1]).ravel()
 
     fig = plt.figure(figsize=(13, 6))
     for idx, (elev, azim, title) in enumerate(
-        [(22, -60, "isometric"), (2, -90, "side view (looking along +Y = -X..-Z plane)")]
+        [
+            (22, -60, "isometric"),
+            (2, -90, "side view (looking along +Y = -X..-Z plane)"),
+        ]
     ):
         ax = fig.add_subplot(1, 2, idx + 1, projection="3d")
         ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], "-o", color="#1f77b4", lw=2, ms=3)
         ax.scatter(*ee, color="red", s=60, label="tool tip (EE)")
         # Approach axis arrow (100 mm) from the EE.
         ax.quiver(
-            ee[0], ee[1], ee[2],
-            approach[0] * 120, approach[1] * 120, approach[2] * 120,
-            color="green", lw=3, label="tool approach (+Y)",
+            ee[0],
+            ee[1],
+            ee[2],
+            approach[0] * 120,
+            approach[1] * 120,
+            approach[2] * 120,
+            color="green",
+            lw=3,
+            label="tool approach (+Y)",
         )
         # Desk plane at z=0.
         xx, yy = np.meshgrid(np.linspace(-500, 100, 2), np.linspace(-150, 250, 2))

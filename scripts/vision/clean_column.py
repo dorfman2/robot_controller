@@ -26,8 +26,22 @@ from spatialmath import SE3
 from armold_controller.ik_solver import ArmIK
 
 Z_STEPS = [
-    260.0, 240.0, 220.0, 200.0, 180.0, 160.0, 140.0, 120.0,
-    100.0, 80.0, 60.0, 40.0, 25.0, 15.0, 5.0, 0.0,
+    260.0,
+    240.0,
+    220.0,
+    200.0,
+    180.0,
+    160.0,
+    140.0,
+    120.0,
+    100.0,
+    80.0,
+    60.0,
+    40.0,
+    25.0,
+    15.0,
+    5.0,
+    0.0,
 ]
 
 # Fixed wrist/base joints: J0=0 (base), J4=-90 (tool down), J5=0 (no roll).
@@ -40,7 +54,9 @@ def approach_axis(ik: ArmIK, cfg: list[float]) -> np.ndarray:
     return np.asarray(SE3(ik.ets.eval(q), check=False).R[:, 1]).ravel()
 
 
-def solve_j123(ik: ArmIK, x: float, z: float, seed: np.ndarray) -> tuple[list[float], float, float]:
+def solve_j123(
+    ik: ArmIK, x: float, z: float, seed: np.ndarray
+) -> tuple[list[float], float, float]:
     """Solve J1,J2,J3 (deg) so the tip hits (x,0,z) pointing straight down.
 
     Returns (cfg6, pos_err_mm, tilt_deg).
@@ -55,8 +71,12 @@ def solve_j123(ik: ArmIK, x: float, z: float, seed: np.ndarray) -> tuple[list[fl
         ori = (ax[0]) ** 2 + (ax[1]) ** 2 + (ax[2] + 1.0) ** 2
         return pos + 500.0 * ori
 
-    res = minimize(cost, seed, method="Nelder-Mead",
-                   options={"xatol": 1e-4, "fatol": 1e-6, "maxiter": 4000})
+    res = minimize(
+        cost,
+        seed,
+        method="Nelder-Mead",
+        options={"xatol": 1e-4, "fatol": 1e-6, "maxiter": 4000},
+    )
     j1, j2, j3 = res.x
     cfg = [J0_FIXED, float(j1), float(j2), float(j3), J4_FIXED, J5_FIXED]
     p = ik.fk(cfg)
@@ -85,8 +105,10 @@ def main() -> None:
         prev = cfg[1:4]
         ok = "OK " if (perr < 2.0 and tilt < 3.0) else "CHK"
         bstr = " ".join(f"{v:.2f}" for v in board)
-        print(f"z={z:5.0f} {ok} perr={perr:4.1f} tilt={tilt:4.1f}  "
-              f"target=[{bstr}]{jump}")
+        print(
+            f"z={z:5.0f} {ok} perr={perr:4.1f} tilt={tilt:4.1f}  "
+            f"target=[{bstr}]{jump}"
+        )
 
 
 if __name__ == "__main__":

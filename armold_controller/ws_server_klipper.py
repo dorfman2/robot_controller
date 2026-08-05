@@ -142,7 +142,7 @@ class KlipperWebSocketServer:
         try:
             async for raw_message in websocket:
                 await self._handle_message(websocket, raw_message)
-        except Exception as e:  # noqa: BLE001 - any client/transport error ends the session cleanly
+        except Exception as e:  # noqa: BLE001 - must not crash server
             logger.debug("Client %s disconnected: %s", remote, e)
         finally:
             self._clients.discard(websocket)
@@ -351,6 +351,9 @@ class KlipperWebSocketServer:
         elif cmd == "delete_waypoint":
             await self._handle_delete_waypoint(websocket, msg)
 
+        elif cmd == "goto_joints":
+            await self._handle_goto_joints(websocket, msg)
+
         else:
             await self._send(
                 websocket,
@@ -391,6 +394,60 @@ class KlipperWebSocketServer:
             logger.debug("FK for state broadcast failed: %s", e)
         state["end_effector"] = end_effector
         return state
+
+    async def _handle_goto_joints(self, websocket: Any, msg: dict[str, Any]) -> None:
+        """Move joints to absolute positions (keeps daemon position in sync).
+
+        This command is the preferred way for external tools (e.g. the pick
+        orchestrator) to command absolute joint targets without bypassing the
+        daemon's internal position tracking. Unlike the Moonraker-direct
+        ``col_move`` workaround, this updates ``_position`` on the board.
+
+        Message format:
+            {"cmd": "goto_joints", "joints": {0: rail_mm, 1: j0_deg, ...},
+             "speed": 15.0}
+        OR:
+            {"cmd": "goto_joints", "target": [rail, j0, j1, j2, j3, j4, j5],
+             "speed": 15.0}
+
+        Args:
+            websocket: Source WebSocket connection.
+            msg: Parsed message dict.
+        """
+        speed = msg.get("speed", 15.0)
+
+        # Accept either dict or list format
+        joints_raw = msg.get("joints")
+        target_raw = msg.get("target")
+
+        targets: dict[int, float] = {}
+        if isinstance(joints_raw, dict):
+            for k, v in joints_raw.items():
+                targets[int(k)] = float(v)
+        elif isinstance(target_raw, list):
+            for i, val in enumerate(target_raw):
+                if i < NUM_JOINTS and val is not None:
+                    targets[i] = float(val)
+        else:
+            await self._send(
+                websocket,
+                {
+                    "type": "error",
+                    "message": "goto_joints requires 'joints' dict or 'target' list",
+                },
+            )
+            return
+
+        success = await self.klipper_board.goto_positions(targets, speed=float(speed))
+        await self._send(
+            websocket,
+            {
+                "type": "ack",
+                "cmd": "goto_joints",
+                "status": "ok" if success else "error",
+                "position": self.klipper_board.position,
+            },
+        )
 
     async def _handle_move_cartesian(self, websocket: Any, msg: dict[str, Any]) -> None:
         """Solve IK for a Cartesian tool-tip target and move the arm joints.

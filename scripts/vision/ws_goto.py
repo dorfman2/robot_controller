@@ -1,4 +1,5 @@
 """Move via move_cartesian to X Y Z (argv) and report ack + grip pixel."""
+
 import asyncio
 import json
 import sys
@@ -30,7 +31,9 @@ async def main() -> None:
     async with websockets.connect("ws://localhost:9090") as ws:
         await get_state(ws)
         await ws.send(
-            json.dumps({"cmd": "move_cartesian", "x": TX, "y": TY, "z": TZ, "speed": SPEED})
+            json.dumps(
+                {"cmd": "move_cartesian", "x": TX, "y": TY, "z": TZ, "speed": SPEED}
+            )
         )
         end = asyncio.get_event_loop().time() + 15
         while asyncio.get_event_loop().time() < end:

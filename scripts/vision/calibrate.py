@@ -1,4 +1,5 @@
 """Hand-eye calibration: grid of move_cartesian points -> pixel<->arm-XY map."""
+
 import asyncio
 import json
 import urllib.request
@@ -32,7 +33,9 @@ async def get_state(ws):
 
 
 async def move(ws, x, y, z):
-    await ws.send(json.dumps({"cmd": "move_cartesian", "x": x, "y": y, "z": z, "speed": SPEED}))
+    await ws.send(
+        json.dumps({"cmd": "move_cartesian", "x": x, "y": y, "z": z, "speed": SPEED})
+    )
     end = asyncio.get_event_loop().time() + 18
     while asyncio.get_event_loop().time() < end:
         m = json.loads(await asyncio.wait_for(ws.recv(), timeout=12))
@@ -55,7 +58,9 @@ async def main() -> None:
                     print(f"skip ({gx:.0f},{gy:.0f}) unreachable")
                     continue
                 if ack["position_error_mm"] > 2.0:
-                    print(f"skip ({gx:.0f},{gy:.0f}) perr={ack['position_error_mm']:.1f}")
+                    print(
+                        f"skip ({gx:.0f},{gy:.0f}) perr={ack['position_error_mm']:.1f}"
+                    )
                     continue
                 await asyncio.sleep(2.5)
                 samples = []
@@ -73,7 +78,9 @@ async def main() -> None:
                 pts_px.append([px, py])
                 pts_xy.append([ee["x"], ee["y"]])
                 rows.append([gx, gy, px, py, ee["x"], ee["y"]])
-                print(f"pt tgt({gx:.0f},{gy:.0f}) ee=({ee['x']:.0f},{ee['y']:.0f}) px=({px:.0f},{py:.0f})")
+                print(
+                    f"pt tgt({gx:.0f},{gy:.0f}) ee=({ee['x']:.0f},{ee['y']:.0f}) px=({px:.0f},{py:.0f})"
+                )
         await move(ws, -250.0, 0.0, Z)  # park central
 
     print(f"collected {len(pts_px)} valid points")
@@ -93,7 +100,7 @@ async def main() -> None:
     pred = pred[:, :2] / pred[:, 2:3]
     err = np.linalg.norm(pred - W, axis=1)
     print(f"method={method} reproj err mm: mean {err.mean():.2f} max {err.max():.2f}")
-    with open(OUT, "w") as f:
+    with open(OUT, "w") as f:  # noqa: ASYNC230 - one-shot calibration write
         json.dump(
             {
                 "type": method,

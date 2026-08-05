@@ -19,14 +19,21 @@ import sys
 import urllib.parse
 import urllib.request
 
-STEPPERS = ["stepper_y", "stepper_z", "stepper_a", "stepper_b", "stepper_c", "stepper_u"]
+STEPPERS = [
+    "stepper_y",
+    "stepper_z",
+    "stepper_a",
+    "stepper_b",
+    "stepper_c",
+    "stepper_u",
+]
 MOONRAKER = "http://localhost:7125"
 
 
 def grip() -> object:
     """Return the OAK detect-stream gripper-marker center pixel, or an error."""
     try:
-        c = json.load(urllib.request.urlopen(f"http://localhost:8091/grip", timeout=3))
+        c = json.load(urllib.request.urlopen("http://localhost:8091/grip", timeout=3))
         return {"center": c.get("center"), "n": c.get("n")}
     except Exception as e:  # noqa: BLE001
         return f"grip err {e}"

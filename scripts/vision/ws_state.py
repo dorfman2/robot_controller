@@ -1,4 +1,5 @@
 """Read current arm state from the armold daemon WebSocket (no motion)."""
+
 import asyncio
 import json
 

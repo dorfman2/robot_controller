@@ -1,4 +1,5 @@
 """OAK-1 Lite capture test on DepthAI v3 API."""
+
 import time
 
 import cv2

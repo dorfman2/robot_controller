@@ -1,4 +1,5 @@
 """Diagnose green marker detectability: capture raw frame, report green HSV."""
+
 import time
 
 import cv2

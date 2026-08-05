@@ -21,11 +21,25 @@ import sys
 import numpy as np
 from spatialmath import SE3
 
-from armold_controller.ik_solver import ArmIK, CartesianTarget, HOME_POSE_DEG
+from armold_controller.ik_solver import HOME_POSE_DEG, ArmIK, CartesianTarget
 
 Z_STEPS = [
-    260.0, 240.0, 220.0, 200.0, 180.0, 160.0, 140.0, 120.0,
-    100.0, 80.0, 60.0, 40.0, 25.0, 15.0, 5.0, 0.0,
+    260.0,
+    240.0,
+    220.0,
+    200.0,
+    180.0,
+    160.0,
+    140.0,
+    120.0,
+    100.0,
+    80.0,
+    60.0,
+    40.0,
+    25.0,
+    15.0,
+    5.0,
+    0.0,
 ]
 
 

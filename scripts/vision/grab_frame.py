@@ -1,4 +1,5 @@
 """Grab one JPEG frame from the local MJPEG stream and save it."""
+
 import urllib.request
 
 data = b""

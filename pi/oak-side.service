@@ -1,0 +1,20 @@
+[Unit]
+Description=Armold Side Camera Stream (OAK-1 Lite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/pi/vision
+WorkingDirectory=/home/pi/vision
+ExecStart=/home/pi/armold-venv/bin/python /home/pi/vision/side_stream.py
+Restart=always
+RestartSec=3
+# Don't let one camera failure affect the other (separate services)
+# Retry on X_LINK_ERROR / USB replug (handled in-app, but systemd restart as backup)
+WatchdogSec=60
+
+[Install]
+WantedBy=multi-user.target

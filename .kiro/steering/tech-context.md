@@ -39,15 +39,25 @@ inclusion: always
 - **dresco/STM32H7xx** — grblHAL STM32H7 driver repo (PlatformIO build, board maps)
 - **dfu-util** — DFU flash tool (installed on Pi)
 
-### Vision Stack (OAK-1 Lite — CONNECTED, in progress 2026-08-01)
-- **OAK-1 Lite** — 13MP monocular camera (IMX214 + Myriad X VPU). Enumerates as `03e7:2485` (unbooted). On a USB2 bus (HIGH speed) currently.
-- **DepthAI v3** — `depthai==3.8.0` (aarch64 wheel) in `/home/pi/armold-venv`. NOTE: v3 API differs greatly from v2; the old `oak1-vision-pick` spec (v2: blobconverter/YoloDetectionNetwork/.blob) is obsolete. v3 reference doc committed at repo root `v3 api.md`.
+### Vision Stack (OAK-4 S + OAK-1 Lite — dual-camera, 2026-08-04)
+- **OAK-4 S** — 48MP monocular overhead camera (IMX678 + RVC4 ~52 TOPS). Powered by USB-C supply, data over local network (TCP_IP). IP `192.168.1.138`, deviceId `4119377180`. DepthAI v3 connects by IP: `dai.DeviceInfo('192.168.1.138')`.
+- **OAK-1 Lite** — 13MP monocular side camera (IMX214 + Myriad X VPU). USB-C to Pi. deviceId `19443010A113177E00`. DepthAI v3 connects by deviceId: `dai.DeviceInfo('19443010A113177E00')`.
+- **DepthAI v3** — `depthai==3.8.0` (aarch64 wheel) in `/home/pi/armold-venv`. Multi-device API: `dai.DeviceInfo(name_or_id)` → `dai.Device(info)` → `dai.Pipeline(device)`. DeviceInfo attr is `deviceId` (NOT `mxid` — v3 dropped `getMxId()`).
 - `opencv-python-headless==5.0.0.93` — image processing (aarch64 wheel, headless — no GUI on Pi).
 - **udev**: `/etc/udev/rules.d/80-movidius.rules` → `SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"` (non-root USB access).
-- **Detection approach = classic CV** (no model training for first pick): flat-field bg subtraction + elongation filter for the pen; HSV green-tape marker on the gripper for hand-eye calibration. v3 NN path (DetectionNetwork / model zoo / nn_archive) is the documented fallback.
-- **Stream/tooling** (`scripts/vision/`, deployed to `/home/pi/`): `oak_detect_stream.py` (MJPEG :8091 with `/`, `/stream`, `/grip` JSON), `calibrate.py` (hand-eye homography grid), `ws_goto.py`/`ws_move.py`/`ws_state.py` (arm control via WS 9090), `grab_frame.py`/`green_diag.py` (diagnostics). Run stream via `sudo systemd-run --unit=oak-stream --collect ...`.
-- **Calibration output**: `/home/pi/armold_handeye.json` (homography H, rail_mm, z_plane, points, reproj error).
-- **Desk plane**: z ≈ 78 mm in arm base frame (gripper 493.7 mm / 19-7/16" above desk at EE z≈572).
+- **Detection approach = classic CV** (no model training for first pick): flat-field bg subtraction + elongation filter for the pen; HSV green-tape marker on the gripper for hand-eye calibration. On-device RVC4 inference infrastructure ready (awaiting trained model).
+- **Services** (systemd, persistent):
+  - `oak-overhead.service` — OAK-4 S overhead stream + pen detection on `:8091` (`/stream`, `/target`, `/grip`).
+  - `oak-side.service` — OAK-1 Lite side stream + tip height + grasp verify on `:8092` (`/stream`, `/gap`, `/grasp`).
+  - Each service restarts independently (`Restart=always`, `RestartSec=3`). One camera failing does NOT affect the other.
+- **Vision code**: `/home/pi/vision/` (rsynced from repo `scripts/vision/`). Deploy: `./scripts/deploy_vision.sh`.
+- **Calibration files**:
+  - `~/armold_cameras.json` — device addressing (IPs, deviceIds, platforms).
+  - `~/armold_handeye_overhead.json` — overhead pixel→arm-XY homography.
+  - `~/armold_sideview.json` — side pixel→mm(Z) calibration (X-dependent scale).
+  - `~/armold_desk_z.json` — multi-point desk-Z surface (model-Z at contact per XY).
+- **Camera config persisted**: `~/armold_cameras.json` records both devices' stable identifiers.
+- **Pen detection = classic CV** (no training): flat-field background subtraction (`absdiff(gray, big-Gaussian-blur)`) + Otsu + elongation filter in a mat ROI. Robust for dark pen on dark mat. NN/trained-YOLO is the documented fallback (v3 has DetectionNetwork/model-zoo/nn_archive).
 
 ### Motion Planning / IK Stack (Robotics Toolbox — integrated 2026-07-31)
 - **roboticstoolbox-python** (v1.3.1) — FK/IK engine. Model built via ETS (Elementary Transform Sequence), NOT URDF/DH. `ETS.ik_LM` (Levenberg-Marquardt) solver, ~1 ms/solve on the Pi.

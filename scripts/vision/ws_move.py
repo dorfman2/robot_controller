@@ -1,4 +1,5 @@
 """Enable motors and jog the shoulder joint (J1) to -30 deg. Reads back state."""
+
 import asyncio
 import json
 
@@ -17,12 +18,18 @@ async def _read_until(ws, pred, timeout=8.0):
 async def main() -> None:
     async with websockets.connect("ws://localhost:9090") as ws:
         await ws.send(json.dumps({"cmd": "enable"}))
-        ack = await _read_until(ws, lambda m: m.get("type") == "ack" and m.get("cmd") == "enable")
+        ack = await _read_until(
+            ws, lambda m: m.get("type") == "ack" and m.get("cmd") == "enable"
+        )
         print("enable ack:", ack)
 
         # joint index 2 = J1 shoulder; -30 deg at 8 deg/s
-        await ws.send(json.dumps({"cmd": "jog", "joint": 2, "delta": -30.0, "speed": 8.0}))
-        ack = await _read_until(ws, lambda m: m.get("type") == "ack" and m.get("cmd") == "jog")
+        await ws.send(
+            json.dumps({"cmd": "jog", "joint": 2, "delta": -30.0, "speed": 8.0})
+        )
+        ack = await _read_until(
+            ws, lambda m: m.get("type") == "ack" and m.get("cmd") == "jog"
+        )
         print("jog ack:", ack)
 
         await asyncio.sleep(7)

@@ -59,9 +59,13 @@ def main() -> None:
     pose = ik.fk(landmark)
     axis = approach_axis(ik, landmark)
     print(f"pick landmark {landmark}:")
-    print(f"  ee=({pose.x:.1f},{pose.y:.1f},{pose.z:.1f}) "
-          f"rpy=({pose.roll:.1f},{pose.pitch:.1f},{pose.yaw:.1f})")
-    print(f"  approach axis=[{axis[0]:.2f} {axis[1]:.2f} {axis[2]:.2f}] (want [0 0 -1])")
+    print(
+        f"  ee=({pose.x:.1f},{pose.y:.1f},{pose.z:.1f}) "
+        f"rpy=({pose.roll:.1f},{pose.pitch:.1f},{pose.yaw:.1f})"
+    )
+    print(
+        f"  approach axis=[{axis[0]:.2f} {axis[1]:.2f} {axis[2]:.2f}] (want [0 0 -1])"
+    )
 
     spins = list(range(-180, 180, 15))
     print("\nLowest reachable Z (vertical gripper, best spin) by horizontal reach:")
@@ -86,8 +90,10 @@ def main() -> None:
                 break
         if best_low is not None:
             spin, js = best
-            print(f"  x={x:6.0f}  lowest z={best_low:5.0f} mm  spin={spin:4d}  "
-                  f"joints={[round(j,1) for j in js]}")
+            print(
+                f"  x={x:6.0f}  lowest z={best_low:5.0f} mm  spin={spin:4d}  "
+                f"joints={[round(j,1) for j in js]}"
+            )
         else:
             print(f"  x={x:6.0f}  no vertical-gripper solution down to z=160")
 
