@@ -35,3 +35,6 @@ BIGTREETECH_S42C_user_manual.pdf
 
 # Diagnostic model renders (regenerable)
 renders/
+
+# Training image dataset (not tracked)
+pen_dataset/

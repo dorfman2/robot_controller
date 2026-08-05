@@ -83,6 +83,28 @@ class GripperTipDetection:
 # ---------------------------------------------------------------------------
 
 
+def _long_axis_angle_deg(box: np.ndarray) -> float:
+    """Return the long-axis orientation (deg, in [-90, 90)) of an oriented box.
+
+    A version-robust alternative to ``cv2.minAreaRect``'s angle (whose range
+    and width/height assignment vary across OpenCV versions): take the longest
+    edge of the 4-corner box and return its angle, normalized to ``[-90, 90)``.
+    Angles are in image coordinates (y points down); the caller maps to the arm
+    frame during hand-eye calibration.
+
+    Args:
+        box: A ``(4, 2)`` array of oriented-box corner points (pixels).
+
+    Returns:
+        Long-axis angle in degrees, normalized to ``[-90, 90)``.
+    """
+    edges = [box[(i + 1) % 4] - box[i] for i in range(4)]
+    lengths = [float(np.hypot(float(e[0]), float(e[1]))) for e in edges]
+    longest = edges[int(np.argmax(lengths))]
+    angle = float(np.degrees(np.arctan2(float(longest[1]), float(longest[0]))))
+    return ((angle + 90.0) % 180.0) - 90.0
+
+
 def detect_pen(
     frame: np.ndarray,
     roi_frac: tuple[float, float, float, float] = (0.20, 0.16, 0.60, 0.656),
@@ -134,7 +156,7 @@ def detect_pen(
         if area > max_area_frac * frame_area:
             continue
         rect = cv2.minAreaRect(c)
-        (cx, cy), (rw, rh), angle = rect
+        (cx, cy), (rw, rh), _rect_angle = rect
         long_side = max(rw, rh)
         short_side = max(min(rw, rh), 1.0)
         elong = long_side / short_side
@@ -143,10 +165,11 @@ def detect_pen(
         score = elong * float(np.sqrt(area))
         if score > best_score:
             best_score = score
-            box = cv2.boxPoints(rect).astype(np.int32) + np.array([x0, y0])
+            raw_box = cv2.boxPoints(rect)
+            box = raw_box.astype(np.int32) + np.array([x0, y0])
             best = PenDetection(
                 center_px=(cx + x0, cy + y0),
-                angle_deg=angle,
+                angle_deg=_long_axis_angle_deg(raw_box),
                 box_points=box,
                 long_side_px=long_side,
                 short_side_px=short_side,

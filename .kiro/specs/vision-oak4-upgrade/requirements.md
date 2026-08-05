@@ -26,9 +26,9 @@ from the OAK-4 S, and closed-loop height/grasp verification from the side view.
 | Component | Role | Connection | Status | Notes |
 |-----------|------|-----------|--------|-------|
 | OAK-4 S | Overhead (primary) | **Local network (IP); powered by USB-C supply** | Swapped in, on LAN | Single-lens 48 MP RGB (no stereo), RVC4 ~52 TOPS AI, 8 GB/128 GB, Luxonis OS, DepthAI v3. PoE+ is an *alternative* power path, not required |
-| OAK-1 Lite | Side / profile | USB-C to Pi | Relocated | 13 MP mono, moved to arm-frame **≈(−600, 0, 15) mm** looking back toward the arm/desk |
+| OAK-1 Lite | Side / profile | USB-C to Pi | Relocated (mounted) | 13 MP mono, at arm-frame **≈(−813, 0, 33) mm** (measured 32" from rail center, 1 5/16" above desk) looking back toward the arm/desk |
 | USB-C power supply (OAK-4 S) | Power for OAK-4 S | wall/USB-C | On hand | Separate from data; ~25 W-capable USB-C supply |
-| Side-camera mount (3D print) | Hold OAK-1 Lite at (−600,0,15) | — | To design | Rigid, at ~desk level, aimed +X across the pick zone |
+| Side-camera mount (3D print) | Hold OAK-1 Lite at (−813,0,33) | — | Done (mounted) | Rigid, ~33 mm above desk, aimed +X across the pick zone |
 | Overhead mount (adapt) | Hold OAK-4 S | — | To adapt | Heavier/larger than OAK-1 Lite; verify FoV covers the mat |
 
 ## Requirements
@@ -163,7 +163,7 @@ from the OAK-4 S, and closed-loop height/grasp verification from the side view.
 - OAK-4 S is **monocular** (no stereo depth) — do not assume a depth map.
 - OAK-4 S is USB-C powered and on the local network (IP) — no PoE+ needed; the risk
   is stable network addressing (use a DHCP reservation / mDNS / mxid).
-- Side camera at (−600, 0, 15) is **beyond** the arm's reach (reach to J5 ≈ 490 mm)
+- Side camera at (−813, 0, 33) is **well beyond** the arm's reach (reach to J5 ≈ 490 mm)
   — confirm it is out of the arm's swept volume and won't be struck.
 - Whether to run OAK-4 S perception **on-device (Luxonis OS)** vs **host-side (Pi
   over IP)** is a design decision (see design.md); default host-side for parity with

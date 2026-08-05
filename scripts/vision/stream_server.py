@@ -142,7 +142,10 @@ def make_handler_class(
                 f"<body style='margin:0;background:#111;text-align:center;"
                 f"font-family:monospace'>"
                 f"<h3 style='color:#ccc;margin:8px'>{index_title}</h3>"
-                f"<img src='/stream' style='max-width:100%;height:auto'>"
+                f"<img id='s' src='/stream' style='max-width:100%;height:auto'>"
+                f"<script>var i=document.getElementById('s');"
+                f"i.onerror=function(){{setTimeout(function(){{"
+                f"i.src='/stream?t='+Date.now();}},800);}};</script>"
                 f"<p style='color:#888'>JSON: {links}</p>"
                 f"</body></html>".encode()
             )

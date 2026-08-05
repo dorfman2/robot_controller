@@ -4,7 +4,7 @@
 Two fixed monocular cameras with complementary roles:
 - **OAK-4 S (overhead):** high-resolution, on-device-AI target finder — *where* the
   pen is in the desk plane and *which way it points*.
-- **OAK-1 Lite (side, ≈(−600,0,15)):** low-angle profile — *how far* the gripper is
+- **OAK-1 Lite (side, ≈(−813,0,33)):** low-angle profile — *how far* the gripper is
   above the desk and *whether the grasp succeeded*.
 
 Together they cover the two things a single overhead monocular camera can't do well:
@@ -61,14 +61,40 @@ depth map. Its value is **compute + resolution + standalone AI** (RVC4, ~52 TOPS
 **Adopted next:** #4 (segmentation grasp point), #5 (tracking).
 **Future:** #6 (visual servoing), leveraging the side camera for Z.
 
+## On-device Model (RVC4) — status & custom pen-model path
+**Verified (2026-08-04):** on-device inference runs on the OAK-4 S RVC4 via
+DepthAI v3 — stock `yolov6-nano` (HubAI zoo) auto-downloaded + compiled for RVC4,
+ran ~29 FPS on-device, and the Pi received only `ImgDetections` (it detected the
+in-scene monitor/keyboard). Code: `on_device_detect.py` (`build_detection_network`
++ `parse_detections`); proof script: `oak4_nn_test.py`. Model formats: a HubAI
+zoo slug or a local `nn_archive` (`.tar`) — **`.blob` is RVC2/Myriad only, not
+RVC4.**
+
+**COCO has no "pen" class**, so pen detection needs a custom-trained model. Path:
+1. **Dataset** — capture pen/tool images from the OAK-4 overhead view over the mat
+   (varied pose/lighting/clutter); annotate boxes (or oriented boxes for grasp
+   yaw) in Roboflow.
+2. **Train** — YOLOv6/YOLOv8 (ultralytics, dev machine) or Roboflow RF-DETR.
+3. **Convert** — HubAI ModelConverter → RVC4 `nn_archive` (`.tar`) (Colab or CLI).
+4. **Deploy** — put the archive on the Pi (or publish to HubAI), set
+   `on_device_detect.MODEL_SLUG` to the slug/path, restart `oak-overhead`; the
+   service then switches from host-side classic-CV to on-device NN.
+5. **Orientation for grasp yaw** — use an oriented-bbox model, OR run the existing
+   `_long_axis_angle_deg` on the NN's cropped detection to recover the long axis.
+
+Until the custom model exists, the overhead service uses the **host-side
+classic-CV** pen detector (`detectors.detect_pen`), which is validated and works
+for the current pick.
+
 ## Camera Roles & Geometry
 - **Overhead OAK-4 S:** looks down at the mat. Image → **arm XY** via a desk-plane
   homography (same method as today, higher res). Provides target XY + orientation.
-- **Side OAK-1 Lite at ≈(−600, 0, 15) looking +X:** its image vertical axis ≈ arm
+- **Side OAK-1 Lite at ≈(−813, 0, 33) mm looking +X** (measured: 32" from rail
+  center, 1 5/16" above desk): its image vertical axis ≈ arm
   **Z** (height), horizontal axis ≈ arm **Y**; depth-into-image ≈ arm **X**. So it
   directly measures **gripper-tip height above the desk** and Y-alignment — exactly
   the Z feedback the overhead view lacks during a straight-down descent. It cannot
-  resolve X (depth); X comes from the overhead camera. (Confirm (−600,0,15) is
+  resolve X (depth); X comes from the overhead camera. (Confirm (−813,0,33) is
   outside the arm's swept volume; reach to J5 ≈ 490 mm, tool tip to ≈ −491 mm.)
 
 ## Calibration
@@ -148,7 +174,7 @@ depth map. Its value is **compute + resolution + standalone AI** (RVC4, ~52 TOPS
   changing DHCP IP breaks DepthAI addressing → use a reservation/mDNS/mxid. (No PoE+
   dependency.)
 - **Side-camera occlusion/lighting**: gripper may self-occlude the tip at some poses;
-  validate the (−600,0,15) angle covers the pick zone.
+  validate the (−813,0,33) angle covers the pick zone.
 - **On-device vs host-side** parity: DepthAI v3 API differences for OAK4; validate
   the chosen models compile/run on RVC4.
 - **Mount rigidity**: any camera shift invalidates calibration; mounts must be rigid
@@ -206,7 +232,7 @@ z-offset at a small XY grid and interpolate; always prefer the **side-camera gap
 for the final descent, with the interpolated model-z as a safety floor.
 
 ### C3 — Side camera cannot resolve X (depth)
-At (−600,0,15) looking +X, the image collapses arm-X: objects at different X
+At (−813,0,33) looking +X, the image collapses arm-X: objects at different X
 project onto the same column, and the px→mm height scale changes with X.
 **Mitigation:** take X only from the overhead camera; calibrate side px→mm **as a
 function of X**, and only trust the tip-height reading at the known target X.
@@ -251,5 +277,5 @@ function of X**, and only trust the tip-height reading at the known target X.
 - Service/daemon crash mid-pick → define safe-state-on-failure (hold energized or
   controlled lift). Redeploy resets daemon position → re-home. Someone moves the
   mat/pen mid-sequence; immovable objects in the ROI. E-STOP during descent +
-  recovery. Confirm the side camera at (−600,0,15) is outside the swept volume and
+  recovery. Confirm the side camera at (−813,0,33) is outside the swept volume and
   the arm doesn't self-occlude the tip at the grasp pose.

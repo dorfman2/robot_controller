@@ -1,33 +1,48 @@
 # Vision Upgrade — OAK-4 S Overhead + OAK-1 Lite Side View — Tasks
 
 ## Phase 0: Hardware & Infra Bring-up
-- [ ] Power the OAK-4 S from its **USB-C supply**; confirm boot (solid status light)
+- [x] Power the OAK-4 S from its **USB-C supply**; confirm boot (solid status light)
       and that it joins the **local network**; record its address and set a **DHCP
       reservation / mDNS / mxid** so DepthAI addressing is stable (R1, R7).
-- [ ] Verify DepthAI v3 on the Pi enumerates the OAK-4 S by IP/mxid and the OAK-1
-      Lite by USB mxid **at the same time** (R1).
-- [ ] Design/print the **side-camera mount**; fix the OAK-1 Lite at arm-frame
-      ≈(−600, 0, 15) aimed +X across the pick zone; verify it's outside the arm's
-      swept volume (R3, constraints).
-- [ ] Adapt the **overhead mount** for the OAK-4 S; confirm FoV covers the mat (R2).
+      (OAK-4 S at 192.168.1.138 / deviceId 4119377180.)
+- [x] Verify DepthAI v3 on the Pi enumerates the OAK-4 S by IP and the OAK-1
+      Lite by USB deviceId **at the same time** (R1). (Streams operator-confirmed.)
+- [x] Design/print the **side-camera mount**; fix the OAK-1 Lite at arm-frame
+      **≈(−813, 0, 33) mm** (measured: 32" from rail center, 1 5/16" above desk),
+      aimed +X across the pick zone; verified outside the arm's swept volume
+      (R3, constraints).
+- [x] Adapt the **overhead mount** for the OAK-4 S; confirm FoV covers the mat (R2).
 
 ## Phase 1: Dual-camera Plumbing (DepthAI v3)
-- [ ] Refactor `oak_detect_stream.py` into two producers (overhead + side) or a
-      shared module addressing each device explicitly (R1, R8).
-- [ ] Extend/split the `oak-stream` systemd service so each camera has `/stream` +
-      a JSON endpoint; clean restart after replug/network reconnect; one camera failing
-      must not kill the other (R1, R8).
-- [ ] Confirm concurrent operation and recovery (USB replug; OAK-4 S network bounce).
+- [x] Two producers (`overhead_stream.py`, `side_stream.py`) + shared threaded
+      server (`stream_server.py`, `camera_config.py`) addressing each device
+      explicitly (OAK-4 S by IP, OAK-1 Lite by USB deviceId) (R1, R8).
+- [x] Split into `oak-overhead.service` (:8091) + `oak-side.service` (:8092),
+      each with `/stream` + JSON endpoints; `Restart=always`; independent — one
+      camera failing does not kill the other (R1, R8).
+- [x] Concurrent operation + recovery confirmed: streams functional together;
+      operator-confirmed **unplug recovery passed for both cameras**. NOTE: the
+      MJPEG browser view stutters/drops (cosmetic) — added client-side
+      auto-reconnect; the machine path uses the threaded JSON endpoints, which
+      are decoupled from `/stream` and unaffected.
 
 ## Phase 2: OAK-4 S Overhead Perception
-- [ ] Bring up an OAK-4 S RGB pipeline in DepthAI v3; stream at a Pi-friendly
-      resolution with a configurable working ROI (like `ROI_FRAC`) (R2).
-- [ ] Port the classic-CV pen detector to OAK-4 frames to get an initial
-      center+angle+confidence on `/target` (JSON) + overlay stream (R2).
-- [ ] Move detection **on-device** on the RVC4 (free the Pi CPU); Pi consumes
-      detections, not raw frames for inference (R2, capability #1).
-- [ ] Add **object orientation** output (oriented bbox or segmentation principal
-      axis) — required for yaw alignment (R2, capability #2).
+- [x] OAK-4 S RGB pipeline in DepthAI v3 (`overhead_stream.py`), streaming with a
+      configurable mat ROI; deployed + operator-confirmed FoV over the mat (R2).
+- [x] Classic-CV pen detector (`detectors.detect_pen`) → center + angle +
+      confidence on `/target` (JSON) + overlay stream. Verified on a REAL frame
+      (red pen on the mat detected: center (334,131), long-axis 82°, conf 85) (R2).
+- [~] Move detection **on-device** on the RVC4 (free the Pi CPU) — INFRA PROVEN:
+      `on_device_detect.py` builds a DetectionNetwork that runs on-camera
+      (verified with stock yolov6-nano @ ~29 FPS; the Pi receives only
+      detections — `oak4_nn_test.py`). REMAINING: a custom-trained **pen** model
+      (`nn_archive`) — COCO has no pen class. Until then the overhead service
+      uses host-side classic-CV (R2, capability #1). See design.md "On-device
+      Model (RVC4)" for the dataset→train→convert→deploy path.
+- [x] **Object orientation** output — `detect_pen` now returns the true long-axis
+      angle (corrected from the ambiguous `minAreaRect` angle via a version-robust
+      corner-based computation `_long_axis_angle_deg`); 5 no-mock tests in
+      `test_detectors.py` verify it against synthetic pens (R2, capability #2).
 
 ## Phase 3: Overhead Calibration (pixel → arm-XY) + desk-Z map
 - [ ] Calibration routine: drive a grid of known arm-XY at fixed hover Z + rail;
