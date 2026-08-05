@@ -9,6 +9,7 @@ warn_unused_ignores = true
 module = [
     "roboticstoolbox.*",
     "spatialmath.*",
+    "scipy.*",
     "aiohttp.*",
     "websockets.*",
 ]

@@ -178,6 +178,27 @@ solution exists, restrict picks to a graspable yaw window or nudge the pen. A
 dedicated kinematic study (tasks Phase 5a) must map the graspable yaw range vs
 target XY and rail travel before the pick loop relies on orientation.
 
+**C1 investigation result (quantified, `scripts/vision/grasp_yaw_investigate.py`):**
+reach azimuth = **180° − J0** (clean), finger-yaw = −J0. Solving `rail + J0`
+correctly (fix J0, choose the rail position that puts the target on that azimuth,
+then check the planar reach) gives:
+- **Rail ⟂ reach (base-Y): a usable but NARROW, ASYMMETRIC window** — ≈ **+10°..+40°**
+  at (−350,0,100), ≈ −5°..+40° off-center, ≈ +5°..+30° at far reach (~30–45° wide,
+  biased positive because the rail travels 0→406 mm one way from home).
+- **Rail ∥ reach (base-X): essentially NO yaw control** for on-axis targets (0° only).
+
+**Implications:** (a) the generated `grasp_yaw_solver.py` "only 0° works" was a
+**bug** (it never fixes J0 and sweeps the rail along X), not the true limit; (b)
+grasp-yaw is **controllable but limited** — arbitrary pen angles are NOT graspable
+at a fixed target. **Rail axis CONFIRMED ⟂ to the reach (base-Y) — the favorable
+case**, so the usable-but-narrow window above applies (NOT the dead ∥ case). The
+window center shifts with the target's Y and the rail working position: at target
+Y=0 with rail home at one end it is one-sided (≈+10..+40°); a +Y target (e.g.
+−300,+50) widens it (≈−5..+40°). Widen further by centering rail travel (shift
+both ways), repositioning the base per target, or a **nudge/reject** policy for
+out-of-window angles. `grasp_yaw_solver.py` needs a rewrite (fix J0 + correct rail
+geometry).
+
 ### C2 — Desk plane is a single calibrated point, not a plane
 z≈74 was measured only at x=−350; droop+backlash vary with pose, so the
 model→physical Z offset differs across the mat. **Mitigation:** calibrate the
