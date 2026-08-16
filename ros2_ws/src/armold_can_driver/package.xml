@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>armold_can_driver</name>
+  <version>0.1.0</version>
+  <description>
+    Protocol driver for thingsbyjosh CANBUS Stepper nodes (Armold arm joints
+    J0-J5 + gripper AUX PWM). Encodes/decodes the vendor CAN protocol
+    (11-bit ID = NodeID&lt;&lt;6 | MsgType, little-endian payloads) and owns the
+    joint-space to motor-space gear/unit mapping.
+  </description>
+  <maintainer email="jdorfman@users.noreply.github.com">Jeffrey Dorfman</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>can_msgs</depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

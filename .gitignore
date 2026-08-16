@@ -38,3 +38,11 @@ renders/
 
 # Training image dataset (not tracked)
 pen_dataset/
+# Vendor reference material (UIM4247PM rail motor) — keep local, not in git
+Manual_UIM344*.pdf
+Dimension_UIM4247PM.pdf
+3D_UIM4247PM.STEP
+Config Tool - UIM344.zip
+# Saved Sweep Sync page (closed-source cloud UI reference)
+Sweep Sync.html
+Sweep Sync_files/

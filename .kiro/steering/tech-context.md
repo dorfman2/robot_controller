@@ -6,7 +6,7 @@ inclusion: always
 
 ## Core Requirements
 - Python 3.12 (Pi), Python 3.10+ (Mac development)
-- ROS 2 Jazzy (on Raspberry Pi 4, Ubuntu 24.04 Noble) — installed but removed from motion path
+- ROS 2 Jazzy (on Raspberry Pi 5 2GB, Ubuntu 24.04 Noble) — reinstalled 2026-08-15 as the motion framework (ros2-can-motion spec); 254 pkgs incl. ros2_socketcan, ros2_control, ros2_controllers
 - USB serial access to Einsy RAMBo (current) and BTT Octopus MAX EZ (next-gen)
 - PlatformIO for firmware development (on Mac)
 - 24V DC, 10A power supply (upgradeable to 48V with EZ5160 drivers)
@@ -93,9 +93,10 @@ inclusion: always
 - **Arduino framework** — Used by both RAMPS (AVR) and OpenCM (STM32) firmware
 
 ## Raspberry Pi Configuration
-- **Model**: Raspberry Pi 4
+- **Model**: Raspberry Pi 5 Model B Rev 1.0, **2 GB RAM** (verified via device-tree + free, 2026-08-15; replaced the Pi 4 at the headless-Jazzy reflash)
 - **OS**: Ubuntu Server 24.04 LTS (Noble) arm64
-- **Kernel**: 6.8.0-1060-raspi
+- **Kernel**: 6.8.0-1047-raspi (Ubuntu 24.04.4, reflashed 2026-08-15)
+- **RAM budget note**: 2 GB — fine for the daemon + vision services + ros2_control; be deliberate about running MoveIt planning + RViz-class loads on-Pi (plan on headless planning only, monitor with `free`)
 - **ROS 2**: Jazzy Jalisco (installed, but being removed from motion path)
 - **IP**: 192.168.1.136 (DHCP reservation)
 - **mDNS**: armold.local
