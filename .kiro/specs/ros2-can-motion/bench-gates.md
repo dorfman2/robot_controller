@@ -24,18 +24,43 @@ second terminal, start at low current (`44 0 2800000000000000` = 40%).
 
 ---
 
-## Gate 1 — Closed-loop verify (R14) — do FIRST, per node
-Firmware default is **open loop** (code contradicts the docs). Per node (IDs
-shown for node 1):
+## Gate 1 — Direction-sense check, THEN closed-loop verify (R14) — per node
 
-1. Set closed loop: `4D 0 0100000000000000`
-2. Save to NVM: `58 0 0000000000000000`
-3. Power-cycle the node, then verify it stuck — read angle: `61 1 0000000000000000`
-4. Enable (`45 0 0100000000000000`), command hold at current position, then
-   gently back-drive the joint by hand a few degrees and release.
+**LESSONS BAKED IN from J6 (first node through, PASSED 2026-08-16):**
+- **Set sane motion params FIRST**: stock defaults are posSpeed **2000 °/s** @
+  30% current — instant stall on any loaded joint, and a stalling stepper
+  buzzes exactly like swapped coils. Send posSpeed 120 (`MsgType 16`), accel/
+  decel 200 (`17`/`18`), current 40% (`4`) before any motion.
+- **Coil-harness sanity spin comes before the direction check**: slow velocity
+  spin (`MsgType 3`, 30 °/s, ~4 s) — smooth rotation = harness OK; buzzing
+  with ~zero encoder delta = wrong loom (J6 had the AABB loom; swapping to
+  ABAB fixed it — despite having "worked" under Sweep firmware).
+- **The hold test needs a position-mode target**: the corrective loop only
+  defends `MsgType 1/2` targets. After velocity commands, re-send a position
+  target (current angle) or back-drive will not be corrected.
+- `Config Saved` prints only on the node's own USB — verify saves via RTR
+  read-back (13/15/20) over the bus instead.
+- J6 is **direct drive (gear_ratio = 1.0)** — deltas there are joint degrees.
+⚠ **REVISED after the J1 runaway (2026-08-16):** enabling closed loop with the
+direction map wrong makes the loop positive-feedback — the motor runs away at
+max speed. NEVER enable closed loop before the direction check passes on that
+node. Per node (IDs shown for node 1):
 
-**PASS:** joint actively returns to the commanded position after back-drive
-(on all 6 nodes, after a power cycle).
+1. **Direction check (open loop):** enable (`45 0 0100000000000000`), read
+   angle (`61 1 00…`), command a SMALL move (+10 motor deg:
+   `41 0 0000000000002440`), read angle again, disable.
+   **Encoder delta must be ≈ +10 deg.** If the sign is inverted, toggle the
+   direction map (`4F 0 0100000000000000` = MsgType 15) and re-check.
+2. Set closed loop: `4D 0 0100000000000000`
+3. Save to NVM: `58 0 0000000000000000`
+4. Power-cycle the node, verify config stuck — read angle: `61 1 00…`
+5. Enable, command hold at current position, gently back-drive the joint a
+   few degrees and release. **Keep a hand near the 24 V kill switch** — if the
+   joint accelerates instead of holding, cut power (broadcast e-stop
+   `6 0 00…` also works if the bus is responsive).
+
+**PASS:** direction delta positive AND joint actively returns to the
+commanded position after back-drive (all 6 nodes, after a power cycle).
 
 ## Gate 2 — E-STOP behavior (R13) — decides the stop policy
 With a weighted joint (J1 or J2) enabled and holding, gravity loading it:
@@ -108,10 +133,10 @@ confirm procedure: park arm → power-cycle → all nodes read ~0.
 ## Results
 | Gate | Result | Date | Notes |
 |------|--------|------|-------|
-| 1 closed-loop ×6 | | | |
-| 2 e-stop policy | | | hold/fall per mode |
+| 1 closed-loop ×6 | **ALL 6 PASS** | 2026-08-16 | Every joint: spin clean, direction INVERTED (mapDirection=1 on ALL SIX), closed-loop stable, back-drive hold verified, config saved (RTR-checked). Currents: **70%** works for J1/J3/J4/J5/J6; **J2 shoulder needs 85%** (stalls at 70). J6 is direct-drive (ratio 1.0) + needed the ABAB loom swap; all other looms correct as-was. Gravity joints tested at vertical home pose. ⚠ MECHANICAL: J1 base screws too tight — binds movement, loosen. Runner: `/home/pi/gate1.py` (GATE1_CURRENT env override). |
+| 2 e-stop policy | **DONE** | 2026-08-16 | MsgType 6 = de-energize: J2 tilted sagged ~+59 motor-deg in 2 s, then FELL (caught by operator). Standstill BRAKING identical to NORMAL at creep speeds (coil-short braking ∝ speed → zero counter-torque at gravity creep). **R13 policy settled: soft halt (enabled hold) is the ONLY safe default for J2–J4; MsgType 6 = arm falls (emergency only, operator supports); power loss = same fall → park straight-up before power-off is a safety requirement.** |
 | 3 speed ceiling | | | per joint |
-| 4 rates (bridge) | | | redo on CANable |
+| 4 rates (bridge) | **MEASURED — bridge insufficient** | 2026-08-16 | Bridge ceiling ≈ **580 fps aggregate inbound**; commanded 50 Hz angle telemetry delivered only 35–46 Hz per node, **node 5 got 9 Hz (its report-freq CONFIG COMMAND was dropped)**; 200/s RTR burst to one node: nearly all lost (48 rx incl. ~60 stream baseline). Production needs ~1000 fps bidirectional. **Commands are silently droppable over the bridge — including the e-stop path. CANable purchase justified with data** (see design §2.5 note). |
 | 5 torque/thermal | | | |
 | 6 gripper duty | | | duty_open= duty_closed= |
 | 7 zero-at-boot | | | |

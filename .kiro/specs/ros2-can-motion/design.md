@@ -244,7 +244,18 @@ carries the six smart joints; the serial path carries the rail. `ros2_socketcan`
    web UI onto the ROS 2 stack.
 
 ## 11. Open decisions
-- USB-CAN adapter model (SocketCAN-native, reliable @1 Mbit).
+- **RESOLVED (2026-08-16) — the CANable IS needed; the USB bridge is bench-only.**
+  Measured through the J1 bridge: ~580 fps aggregate inbound ceiling; commanded
+  50 Hz telemetry arrived at 35–46 Hz (node 5: 9 Hz — its config command was
+  silently dropped); a 200/s command burst to one node was almost entirely
+  lost. Production needs ~1000 fps bidirectional, and — decisively — **commands
+  (enable/e-stop/config) share the same lossy path**. On real SocketCAN the
+  broadcast e-stop (ID 0x006) wins bus arbitration outright. Bridge remains the
+  bench/config transport. (Deeper per-node fix if ever needed: patch stock
+  firmware to drain the RX queue per loop pass instead of one frame, and raise
+  the 5-frame queues — we now flash boards trivially.)
+- USB-CAN adapter model (SocketCAN-native, reliable @1 Mbit): CANable 2.0 /
+  MKS CANable 2.0 Pro with candleLight — purchase pending.
 - **RESOLVED (2026-08-09) — wireless access = Pi as gateway (option 1).** No radio
   on the motion nodes (keeps verified manufacturer firmware + avoids WiFi/step-gen
   jitter on the same die). The Pi (LAN/SSH/WebSocket) + CANable is the wireless

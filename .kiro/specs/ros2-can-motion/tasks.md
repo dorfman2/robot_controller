@@ -58,8 +58,19 @@
 ## Phase 1: CAN bus bring-up (single adapter)
 - [ ] Bring up `can0` @ 1 Mbit on the Pi; make it **persistent** (systemd-networkd/
       udev), surviving reboot + replug; document (R1).
-- [ ] Set unique **NodeID 1–6** on each board (SW1-on-boot), save to NVM; label boards
-      to joints J0–J5; verify each enumerates on `can0` (`candump`) (R1).
+- [x] Set unique **NodeID 1–6** on each board, save to NVM (R1). **DONE 2026-08-16:
+      all 6 boards reflashed to stock V0.11** (Sweep Dynamics firmware backed up
+      first — it ignores the stock command set, so reflash was required; backups
+      restorable via `esptool write_flash 0x0`). Provisioned via
+      `provision_node.py` per board over USB: disable-first → NodeID → enable-on-
+      boot OFF → save → verify v0.11 + angle stream. All 6 verified streaming on
+      the shared bus through the J1 USB bridge. **Full-image flash wipes NVS**:
+      park the USB-attached node at a temp ID (7) so fresh boards (default ID 1)
+      don't collide. ⚠ **RUNAWAY INCIDENT (J1)**: enabling closed-loop with the
+      direction map unset inverted the feedback → motor ran away at ~2000 deg/s
+      until stalled on the cable. Boards stay OPEN-LOOP until the per-joint
+      direction-sense check in Gate 1. XT30 (2+2) gotcha: power pins can mate
+      while CAN pins don't — green LED ≠ on-bus (nodes 2/5 needed a reseat).
 - [ ] Install `ros2_socketcan`; confirm `/from_can_bus` + `/to_can_bus` shuttle raw
       frames both directions (R2).
 - [ ] Measure bus load headroom with `canbusload can0@1000000` under a telemetry load

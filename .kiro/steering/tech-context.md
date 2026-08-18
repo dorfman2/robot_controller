@@ -232,6 +232,6 @@ tool-along-arm, no sign flips) were ALL wrong and are superseded.
 - SPI controls: current, microstepping, mode, StallGuard sensitivity (all runtime-configurable)
 - StallGuard sensorless homing available on DIAG pins (PK2, PK7, PK6, PK3) — future use at slower speeds
 - SpreadCycle preferred over StealthChop for robot arm (dynamic response > silence)
-- 20:1 cycloidal drive on all joints → calibrated to 83,028 steps/output revolution (~230.6 steps/degree)
+- 20:1 cycloidal drive on most joints → calibrated to 83,028 steps/output revolution (~230.6 steps/degree). **EXCEPTION: J6 (wrist yaw, CAN node 6) is DIRECT DRIVE — gear_ratio 1.0, its loom is ABAB (swapped from AABB during Gate 1, 2026-08-16).** Per-joint ratios must be confirmed per joint during Gate 1, not assumed.
 - USB serial via ATmega32U2 bridge — max reliable baud: 250,000 (NOT native CDC)
 - Segment protocol (`X` command) allows Pi-side trajectory planning with MCU interpolation
